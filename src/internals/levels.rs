@@ -1,4 +1,7 @@
-use crate::{consts::{DEATH_SCENE, FIRST_LEVEL, DEATH_TEXT_OBJ, PLAYER_START_DEFAULT_POS}};
+use graphics::{grid, color::{YELLOW, MAGENTA}};
+use serde::{Serialize, Deserialize};
+
+use crate::{consts::{DEATH_SCENE, FIRST_LEVEL, DEATH_TEXT_OBJ, PLAYER_START_DEFAULT_POS, self, WHITE, RED, objects::SPIKE_TX, GOAL_TX, GREEN, TRANSITION_TX, WRAP_TX, CONVEYER_L_TX, CONVEYER_R_TX}, render::{RenderJob, rect::Rect, texture::ImageRenderer}};
 
 use super::{object::{BlockTemplate}};
 
@@ -34,11 +37,17 @@ impl Level {
         &self.grid[self.player_start[0]][self.player_start[1]]
     }
 }
+
+#[derive(Serialize, Deserialize, Clone)]
 pub struct LevelGrid {
     pub contents: Vec<Vec<GridSpace>>,
     pub others: Vec<BlockTemplate>,
 }
 impl LevelGrid {
+    pub fn new() -> LevelGrid {
+        LevelGrid { contents: vec![vec![GridSpace::None; consts::TILES + 2]; consts::TILES + 2], others: Vec::new() }
+    }
+    // DEPRECATED
     pub fn from_str(contents: String) -> LevelGrid {
         let mut lines = 0;
         let mut res = vec![vec![]];
@@ -67,6 +76,7 @@ impl LevelGrid {
     }
 }
 
+#[derive(Serialize, Deserialize, Clone)]
 pub enum GridSpace {
     // stops the player from moving
     Block,
@@ -89,4 +99,26 @@ pub enum GridSpace {
     ConveyerL,
     // there is nothing here
     None,
+}
+impl GridSpace {
+    pub fn to_render_job(&self, x: usize, y: usize, grid_size: f64, offset: [f64; 2]) -> Option<RenderJob> {
+        let bounds = [
+            (x as f64) * grid_size + offset[0], 
+            (y as f64) * grid_size + offset[1], 
+            (x as f64 + 1.0) * grid_size + offset[0], 
+            (y as f64 + 1.0) * grid_size + offset[1]];
+        match self {
+            GridSpace::Block => Some(Rect::new(WHITE, bounds)),
+            GridSpace::Spike => Some(ImageRenderer::new(bounds, RED, SPIKE_TX)),
+            GridSpace::Enemy => Some(Rect::new(RED, bounds)),
+            GridSpace::Goal => Some(ImageRenderer::new(bounds, YELLOW, GOAL_TX)),
+            GridSpace::StartingLocation => Some(Rect::new(GREEN, bounds)),
+            GridSpace::Transition => Some(ImageRenderer::new(bounds, YELLOW, TRANSITION_TX)),
+            GridSpace::Wrap => Some(ImageRenderer::new(bounds, YELLOW, WRAP_TX)),
+            GridSpace::StickyBlock => Some(Rect::new(MAGENTA, bounds)),
+            GridSpace::ConveyerR => Some(ImageRenderer::new(bounds, YELLOW, CONVEYER_R_TX)),
+            GridSpace::ConveyerL => Some(ImageRenderer::new(bounds, YELLOW, CONVEYER_L_TX)),
+            GridSpace::None => None,
+        }
+    }
 }

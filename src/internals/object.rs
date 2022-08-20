@@ -1,3 +1,5 @@
+use serde::{Serialize, Deserialize};
+
 use crate::{render::{RenderJobs, RenderJob, RenderJobID}, consts::{NUM_TIMES_F64, FUDGE, self, GRID_SIZE}};
 
 use super::controls::Controls;
@@ -85,15 +87,21 @@ pub struct Environment {
     pub x_friction: f64,
     pub y_friction: f64,
 }
-#[derive(Clone)]
+pub struct Transform {
+    // the number of tiles to the right/left and up/down we shift everything 
+    pub tile_offset: [f64; 2],
+    // how big a tile is
+    pub tile_size: [f64; 2],
+}
+#[derive(Clone, Serialize, Deserialize)]
 
 pub struct ObjectTemplate {
-    pub x_pos: Option<f64>,
-    pub y_pos: Option<f64>,
+    pub x_pos: Option<f64>, // xpos in tiles
+    pub y_pos: Option<f64>, // ypos in tiles
     pub x_speed: Option<f64>,
     pub y_speed: Option<f64>,
-    pub width: Option<f64>,
-    pub height: Option<f64>,
+    pub width: Option<f64>, // width in tiles
+    pub height: Option<f64>, // height in tiles
     pub job: Option<RenderJob>,
     pub layer: Option<u64>,
 }
@@ -133,23 +141,23 @@ impl ObjectTemplate {
         self.layer = Some(new);
         self
     }
-    pub fn to_object(&self, jobs: &mut RenderJobs) -> Option<Object> {
+    pub fn to_object(&self, jobs: &mut RenderJobs, transform: &Transform) -> Option<Object> {
         let mut other_job = self.job.clone()?;
         let bounds = other_job.bounds();
-        bounds[0] = self.x_pos?;
-        bounds[1] = self.y_pos?;
-        bounds[2] = self.width?;
-        bounds[3] = self.height?;
+        bounds[0] = (self.x_pos? as f64 + transform.tile_offset[0]) * transform.tile_size[0];
+        bounds[1] = (self.y_pos? as f64 + transform.tile_offset[1]) * transform.tile_size[1];
+        bounds[2] = self.width? * transform.tile_size[0];
+        bounds[3] = self.height? * transform.tile_size[1];
         let id = jobs.add_job(self.job.clone()?, self.layer?);
         Some(Object { 
-            x_pos: self.x_pos?, 
-            y_pos: self.y_pos?, 
+            x_pos: bounds[0], 
+            y_pos: bounds[1], 
             x_speed: self.x_speed?, 
             y_speed: self.y_speed?, 
             job_id: id, 
             job: None, 
-            width: self.width?, 
-            height: self.height?
+            width: bounds[2], 
+            height: bounds[3],
         })
     }
     pub fn or(&mut self, other: &ObjectTemplate) {
@@ -162,46 +170,8 @@ impl ObjectTemplate {
         self.job = self.job.take().or(other.job.clone());
         self.layer = self.layer.or(other.layer);
     }
-    pub fn update_object(&self, jobs: &mut RenderJobs, current: &mut Object, start_render: bool) {
-        current.x_pos = self.x_pos.unwrap_or(current.x_pos);
-        current.y_pos = self.y_pos.unwrap_or(current.y_pos);
-        current.x_speed = self.x_speed.unwrap_or(current.x_speed);
-        current.y_speed = self.y_speed.unwrap_or(current.y_speed);
-        current.width = self.width.unwrap_or(current.width);
-        current.height = self.height.unwrap_or(current.height);
-        if let Some(job) = &self.job {
-            if let Some(_) = current.job {
-                // the current item is not being rendered. 
-                if start_render {
-                    current.job = None;
-                    if let Some(layer) = self.layer {
-                        jobs.add_job(job.clone(), layer);
-                    } else {
-                        jobs.set_job(job.clone(), current.job_id);
-                    }
-                } else {
-                    current.job = Some(job.clone());
-                }   
-            } else {
-                if let Some(layer) = self.layer {
-                    jobs.add_job(job.clone(), layer);
-                } else {
-                    jobs.set_job(job.clone(), current.job_id);
-                }
-            }
-        } else if let Some(layer) = self.layer {
-            if start_render || current.job.is_none() {
-                let extracted_job = current.job.take().xor(jobs.remove_job(current.job_id)).expect("safe unwrap");
-                current.job_id = jobs.add_job(extracted_job, layer);
-            } else {
-                let extracted_job = current.job.take().expect("safe unwrap");
-                current.job_id = jobs.add_job(extracted_job, layer);
-                current.job = jobs.remove_job(current.job_id);
-            }
-        }
-    }
 }
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct BlockTemplate {
     pub object: ObjectTemplate,
     pub behavior: Behavior,
@@ -210,8 +180,8 @@ impl BlockTemplate {
     pub fn new() -> BlockTemplate {
         BlockTemplate { object: ObjectTemplate::new(), behavior: Behavior::None }
     }
-    pub fn to_block(&mut self, jobs: &mut RenderJobs) -> Option<Block> {
-        if let Some(val) = self.object.to_object(jobs) {
+    pub fn to_block(&mut self, jobs: &mut RenderJobs, transform: &Transform) -> Option<Block> {
+        if let Some(val) = self.object.to_object(jobs, transform) {
             Some(Block::new(val, self.behavior))
         } else {
             None
@@ -293,7 +263,7 @@ impl Block {
     }
 }
 // how the block interacts with the player on touch
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Serialize, Deserialize)]
 pub enum Behavior {
     Stop,
     Kill,
@@ -303,7 +273,7 @@ pub enum Behavior {
     Portal,
     None,
 }
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Serialize, Deserialize)]
 pub enum Direction {
     Up,
     Down,

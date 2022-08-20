@@ -19,9 +19,18 @@ pub const DEFAULT_FONT_ID: FontID = FontID(0);
 pub const TITLE:&str = "The Horrible Game";
 // each tile is 50 pixels
 pub const GRID_SIZE: f64 = 50.0;
+pub const TILES: usize = 20;
+pub const TILES_U32: u32 = 20;
 // the grid is 20 tiles by 20 tiles
-pub const WINDOW_X:u32 = (GRID_SIZE * 20.0) as u32;
-pub const WINDOW_Y:u32 = (GRID_SIZE * 20.0) as u32;
+pub const WINDOW_X:u32 = (GRID_SIZE as u32) * TILES_U32;
+pub const WINDOW_Y:u32 = (GRID_SIZE as u32) * TILES_U32;
+// Map edit
+pub const MEDIT_TILES: u32 = 22;
+pub const MEDIT_TILE_SIZE: f64 = 40.0;
+pub const MEDIT_EXTRA_ROOM: u32 = 12;// 12 tiles worth of extra room
+pub const MEDIT_WINDOW_X: u32 = (MEDIT_TILE_SIZE as u32) * (MEDIT_TILES + MEDIT_EXTRA_ROOM); 
+pub const MEDIT_WINDOW_Y: u32 = (MEDIT_TILE_SIZE as u32) * MEDIT_TILES;
+// Opengl stuff
 pub const OPENGL: OpenGL = OpenGL::V4_5;
 pub const FRAMERATE: Duration = Duration::from_micros(0); // no maximum framerate
 // input

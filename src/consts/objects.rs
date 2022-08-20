@@ -1,18 +1,30 @@
 use graphics::color::YELLOW;
 
-use crate::{internals::object::{ObjectTemplate, Environment, BlockTemplate, Behavior}, render::{rect::Rect, texture::{ImageRenderer, TextureID}, text::TextRenderer}};
+use crate::{internals::object::{ObjectTemplate, Environment, BlockTemplate, Behavior, Transform}, render::{rect::Rect, texture::{ImageRenderer, TextureID}, text::TextRenderer}};
 
-use super::{GRID_SIZE, CONTENT_LAYER, MAGNETA, WHITE, RED, UI_LAYER, WINDOW_X, WINDOW_Y, DEFAULT_FONT_ID};
+use super::{GRID_SIZE, CONTENT_LAYER, WHITE, RED, UI_LAYER, WINDOW_X, WINDOW_Y, DEFAULT_FONT_ID, GREEN, TILES, MEDIT_TILE_SIZE};
 pub const SPIKE_TX: TextureID = TextureID(0);
 pub const GOAL_TX: TextureID = TextureID(1);
+pub const WRAP_TX: TextureID = TextureID(2);
+pub const TRANSITION_TX: TextureID = TextureID(3);
+pub const CONVEYER_L_TX: TextureID = TextureID(4);
+pub const CONVEYER_R_TX: TextureID = TextureID(5);
+pub const GAME_TRANSFORM: Transform = Transform {
+    tile_offset: [-1.0; 2],
+    tile_size: [GRID_SIZE; 2],
+};
+pub const MEDIT_TRANSFORM: Transform = Transform {
+    tile_offset: [0.0; 2],
+    tile_size: [MEDIT_TILE_SIZE; 2],
+};
 pub const PLAYER: ObjectTemplate = ObjectTemplate {
     x_pos: None,
     y_pos: None,
     x_speed: Some(0.0),
     y_speed: Some(0.0),
-    width: Some(GRID_SIZE - 1.0),
-    height: Some(GRID_SIZE - 1.0),
-    job: Some(Rect::new(MAGNETA, [0.0; 4])),
+    width: Some(0.98),
+    height: Some(0.98),
+    job: Some(Rect::new(GREEN, [0.0; 4])),
     layer: Some(CONTENT_LAYER),
 };
 pub const BLOCK: ObjectTemplate = ObjectTemplate {
@@ -20,8 +32,8 @@ pub const BLOCK: ObjectTemplate = ObjectTemplate {
     y_pos: None,
     x_speed: Some(0.0),
     y_speed: Some(0.0),
-    width: Some(GRID_SIZE),
-    height: Some(GRID_SIZE),
+    width: Some(1.0),
+    height: Some(1.0),
     job: Some(Rect::new(WHITE, [0.0; 4])),
     layer: Some(CONTENT_LAYER),
 };
@@ -30,8 +42,8 @@ pub const SPIKE: ObjectTemplate = ObjectTemplate {
     y_pos: None,
     x_speed: Some(0.0),
     y_speed: Some(0.0),
-    width: Some(GRID_SIZE),
-    height: Some(GRID_SIZE),
+    width: Some(1.0),
+    height: Some(1.0),
     job: Some(ImageRenderer::new([0.0; 4], RED, SPIKE_TX)),
     layer: Some(CONTENT_LAYER),
 };
@@ -40,8 +52,8 @@ pub const GOAL: ObjectTemplate = ObjectTemplate {
     y_pos: None,
     x_speed: Some(0.0),
     y_speed: Some(0.0),
-    width: Some(GRID_SIZE),
-    height: Some(GRID_SIZE),
+    width: Some(1.0),
+    height: Some(1.0),
     job: Some(ImageRenderer::new([0.0; 4], YELLOW, GOAL_TX)),
     layer: Some(CONTENT_LAYER),
 };
@@ -50,8 +62,8 @@ pub const ENEMY: ObjectTemplate = ObjectTemplate {
     y_pos: None,
     x_speed: Some(0.0),
     y_speed: Some(0.0),
-    width: Some(GRID_SIZE),
-    height: Some(GRID_SIZE),
+    width: Some(1.0),
+    height: Some(1.0),
     job: Some(Rect::new(WHITE, [0.0; 4])),
     layer: Some(CONTENT_LAYER),
 };
@@ -117,8 +129,8 @@ BlockTemplate {
         y_pos: Some(0.0),
         x_speed: Some(0.0),
         y_speed: Some(0.0),
-        width: Some(WINDOW_X as f64),
-        height: Some(WINDOW_Y as f64),
+        width: Some(TILES as f64),
+        height: Some(TILES as f64),
         job: Some(TextRenderer::new_ref(DEATH_TEXT, [0.0; 4], RED, GRID_SIZE as u32, 0, 0, DEFAULT_FONT_ID)),
         layer: Some(UI_LAYER),
     },

@@ -4,7 +4,7 @@ pub mod controls;
 
 use std::{mem::take};
 
-use crate::{render::{RenderJobs}, consts::{PLAYER, BLOCK, SPIKE, ENEMY, PLAYER_ENV, NUM_TIMES, GRID_SIZE, GOAL}};
+use crate::{render::{RenderJobs}, consts::{PLAYER, BLOCK, SPIKE, ENEMY, PLAYER_ENV, NUM_TIMES, GRID_SIZE, GOAL, GAME_TRANSFORM}};
 
 use self::{object::{Object, Environment, Block, Behavior, Direction, CollideAction}, levels::{GridSpace, Levels}, controls::Controls};
 
@@ -56,12 +56,12 @@ impl Game {
             for (j, block) in line.iter().enumerate() {
                 match block {
                     GridSpace::Block => {
-                        let object = BLOCK.x_pos(((j as f64) - 1.0) * GRID_SIZE).y_pos(((i as f64) - 1.0) * GRID_SIZE).to_object(jobs).unwrap();
+                        let object = BLOCK.x_pos(j as f64).y_pos(i as f64).to_object(jobs, &GAME_TRANSFORM).unwrap();
                         let block = Block::new(object, Behavior::Stop);
                         self.blocks.push(block);
                     },
                     GridSpace::Spike => {
-                        let object = SPIKE.x_pos(((j as f64) - 1.0) * GRID_SIZE).y_pos(((i as f64) - 1.0) * GRID_SIZE).to_object(jobs).unwrap();
+                        let object = SPIKE.x_pos(j as f64).y_pos(i as f64).to_object(jobs, &GAME_TRANSFORM).unwrap();
                         let spike = Block::new(object, Behavior::Kill);
                         self.blocks.push(spike);
                     },
@@ -69,21 +69,21 @@ impl Game {
                         todo!()
                     },
                     GridSpace::Goal => {
-                        let object = GOAL.x_pos(((j as f64) - 1.0) * GRID_SIZE).y_pos(((i as f64) - 1.0) * GRID_SIZE).to_object(jobs).unwrap();
+                        let object = GOAL.x_pos(j as f64).y_pos(i as f64).to_object(jobs, &GAME_TRANSFORM).unwrap();
                         let goal = Block::new(object, Behavior::Advance);
                         self.blocks.push(goal);
                     },
                     GridSpace::StartingLocation => {
-                        self.player = Some(PLAYER.x_pos(((j as f64) - 1.0) * GRID_SIZE).y_pos(((i as f64) - 1.0) * GRID_SIZE).to_object(jobs).unwrap());
+                        self.player = Some(PLAYER.x_pos(j as f64).y_pos(i as f64).to_object(jobs, &GAME_TRANSFORM).unwrap());
                     },
                     GridSpace::None => {},
                     GridSpace::Transition => {
-                        let object = BLOCK.x_pos(((j as f64) - 1.0) * GRID_SIZE).y_pos(((i as f64) - 1.0) * GRID_SIZE).to_object(jobs).unwrap();
+                        let object = BLOCK.x_pos(j as f64).y_pos(i as f64).to_object(jobs, &GAME_TRANSFORM).unwrap();
                         let transitioner = Block::new(object, Behavior::Portal);
                         self.blocks.push(transitioner);
                     },
                     GridSpace::Wrap => {
-                        let object = BLOCK.x_pos(((j as f64) - 1.0) * GRID_SIZE).y_pos(((i as f64) - 1.0) * GRID_SIZE).to_object(jobs).unwrap();
+                        let object = BLOCK.x_pos(j as f64).y_pos(i as f64).to_object(jobs, &GAME_TRANSFORM).unwrap();
                         let wrapper = Block::new(object, Behavior::Wrap);
                         self.blocks.push(wrapper);
                     },
@@ -94,7 +94,7 @@ impl Game {
             }
         }
         for line in &self.levels.levels[self.current_level].start().others {
-            self.blocks.push(line.clone().to_block(jobs).unwrap());
+            self.blocks.push(line.clone().to_block(jobs, &GAME_TRANSFORM).unwrap());
         }
     }
     pub fn tick(&mut self, jobs: &mut RenderJobs) {

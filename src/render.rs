@@ -8,8 +8,9 @@ use graphics::{color::BLACK, Graphics, Context};
 use opengl_graphics::{GlGraphics, GlyphCache};
 use piston::{WindowSettings, RenderArgs, UpdateArgs, Events, EventSettings, Event, Loop, Input,  Button, ButtonState, Motion};
 use piston_window::PistonWindow;
+use serde::{Serialize, Deserialize};
 
-use crate::{consts::{OPENGL, TITLE, WINDOW_X, WINDOW_Y, FRAMERATE, LAYER_SIZE, LAYERS}, render::text::TextRenderer, input::InputVars};
+use crate::{consts::{OPENGL, TITLE, WINDOW_X, WINDOW_Y, FRAMERATE, LAYER_SIZE, LAYERS, TRANSPARENT}, render::text::TextRenderer, input::InputVars};
 
 use self::{rect::Rect, texture::{TextureBuffer, ImageRenderer}};
 
@@ -122,6 +123,12 @@ pub struct RenderJobs {
     count: Vec<u64>, // one count is kept per layer
 }
 impl RenderJobs {
+    pub fn clear(&mut self) {
+        self.internal.clear();
+        for line in &mut self.count {
+            *line = 0;
+        }
+    }
     pub fn new() -> RenderJobs {
         RenderJobs { internal: BTreeMap::new(), count: vec![0; LAYERS as usize] }
     }
@@ -154,25 +161,34 @@ impl RenderJobs {
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct RenderJobID(u64);
 // the type of rendering to be done - a square, a circle, or even an image
-#[derive(Clone)]
-pub enum RenderJob {
+
+#[derive(Clone, Serialize, Deserialize)]
+pub enum RenderJobComponent {
     Rect(Rect),
     Text(TextRenderer),
     Image(ImageRenderer),
 }
+#[derive(Clone, Serialize, Deserialize)]
+pub struct RenderJob {
+    pub cmp: RenderJobComponent,
+    pub enabled: bool,
+}
 impl RenderJob {
+    pub fn default() -> RenderJob {
+        Rect::new(TRANSPARENT, [0.0; 4])
+    }
     fn render(&self, context: &Context, graphics: &mut GlGraphics, font: &mut Vec<GlyphCache>, textures: &TextureBuffer) {
-        match self {
-            RenderJob::Rect(val) => val.render(context, graphics),
-            RenderJob::Text(val) => val.render(context, graphics, font),
-            RenderJob::Image(val) => val.render(context, graphics, textures)
+        match &self.cmp {
+            RenderJobComponent::Rect(val) => val.render(context, graphics),
+            RenderJobComponent::Text(val) => val.render(context, graphics, font),
+            RenderJobComponent::Image(val) => val.render(context, graphics, textures)
         }
     }
     pub fn bounds(&mut self) -> &mut [f64; 4] {
-        match self {
-            RenderJob::Rect(val) => &mut val.bounds,
-            RenderJob::Text(val) => &mut val.bounds,
-            RenderJob::Image(val) => &mut val.bounds,
+        match &mut self.cmp {
+            RenderJobComponent::Rect(val) => &mut val.bounds,
+            RenderJobComponent::Text(val) => &mut val.bounds,
+            RenderJobComponent::Image(val) => &mut val.bounds,
         }
     }
 }

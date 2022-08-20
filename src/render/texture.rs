@@ -1,7 +1,8 @@
 use graphics::{Context, Image};
 use opengl_graphics::{Texture, GlGraphics};
+use serde::{Deserialize, Serialize};
 
-use super::RenderJob;
+use super::{RenderJob, RenderJobComponent};
 
 pub struct TextureBuffer {
     pub textures: Vec<Texture>    
@@ -18,9 +19,9 @@ impl TextureBuffer {
         &self.textures[id.0]
     }
 }
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Serialize, Deserialize)]
 pub struct TextureID(pub usize);
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct ImageRenderer {
     pub bounds: [f64; 4],
     pub tint: [f32; 4],
@@ -31,6 +32,6 @@ impl ImageRenderer {
         Image::new().color(self.tint).rect(self.bounds).draw(textures.get(&self.texture), &context.draw_state, context.transform, graphics);
     }
     pub const fn new(bounds: [f64; 4], tint: [f32; 4], texture: TextureID) -> RenderJob {
-        RenderJob::Image(ImageRenderer { bounds, tint, texture })
+        RenderJob {cmp: RenderJobComponent::Image(ImageRenderer { bounds, tint, texture }), enabled: true}
     }
 }

@@ -3,12 +3,13 @@ use std::borrow::Cow;
 use graphics::{types::FontSize, Context, Text, CharacterCache, Transformed};
 use opengl_graphics::{GlGraphics, GlyphCache};
 use piston::Size;
+use serde::{Serialize, Deserialize};
 
-use super::RenderJob;
+use super::{RenderJob, RenderJobComponent};
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct FontID(pub usize);
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct TextRenderer {
     pub text: Cow<'static, str>,
     pub bounds: [f64; 4],
@@ -20,7 +21,7 @@ pub struct TextRenderer {
 }
 impl TextRenderer {
     pub const fn new(text: String, bounds: [f64; 4], color: [f32; 4], size: FontSize, halign: i8, valign: i8, font: FontID) -> RenderJob {
-        RenderJob::Text(TextRenderer {
+        RenderJob{cmp: RenderJobComponent::Text(TextRenderer {
             text: Cow::Owned(text),
             bounds,
             color,
@@ -28,10 +29,10 @@ impl TextRenderer {
             halign,
             valign,
             font,
-        })
+        }), enabled: true}
     }
     pub const fn new_ref(text: &'static str, bounds: [f64; 4], color: [f32; 4], size: FontSize, halign: i8, valign: i8, font: FontID) -> RenderJob {
-        RenderJob::Text(TextRenderer {
+        RenderJob {cmp: RenderJobComponent::Text(TextRenderer {
             text: Cow::Borrowed(text),
             bounds,
             color,
@@ -39,17 +40,17 @@ impl TextRenderer {
             halign,
             valign,
             font,
-        })
+        }), enabled: true}
     }
     pub fn ensure_mut(orig: &mut RenderJob) -> &mut TextRenderer {
-        match orig {
-            RenderJob::Text(res) => res,
+        match &mut orig.cmp {
+            RenderJobComponent::Text(res) => res,
             _ => panic!("Ensure failed!")
         }
     }
     pub fn ensure(orig: &RenderJob) -> &TextRenderer {
-        match orig {
-            RenderJob::Text(res) => res,
+        match &orig.cmp {
+            RenderJobComponent::Text(res) => res,
             _ => panic!("Ensure failed!")
         }
     }
