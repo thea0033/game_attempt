@@ -1,7 +1,8 @@
-use graphics::{grid, color::{YELLOW, MAGENTA}};
+use graphics::{color::{YELLOW, MAGENTA}};
 use serde::{Serialize, Deserialize};
+use serde_json::from_slice;
 
-use crate::{consts::{DEATH_SCENE, FIRST_LEVEL, DEATH_TEXT_OBJ, PLAYER_START_DEFAULT_POS, self, WHITE, RED, objects::SPIKE_TX, GOAL_TX, GREEN, TRANSITION_TX, WRAP_TX, CONVEYER_L_TX, CONVEYER_R_TX}, render::{RenderJob, rect::Rect, texture::ImageRenderer}};
+use crate::{consts::{self, WHITE, RED, objects::SPIKE_TX, GOAL_TX, GREEN, TRANSITION_TX, WRAP_TX, CONVEYER_L_TX, CONVEYER_R_TX, TRANSPARENT}, render::{RenderJob, rect::Rect, texture::ImageRenderer, RenderJobs}, medit::{IOMap, Map}};
 
 use super::{object::{BlockTemplate}};
 
@@ -11,20 +12,11 @@ pub struct Levels {
 }
 impl Levels {
     pub fn new() -> Levels {
-        let mut levels = Vec::new();
-        // currently uses consts instead of file reading; this should change soon. 
-        levels.push(Level {
-            grid: vec![
-                vec![LevelGrid::from_str(DEATH_SCENE.to_string()).add_others(vec![DEATH_TEXT_OBJ])]
-            ],
-            player_start: PLAYER_START_DEFAULT_POS
-        });
-        levels.push(Level {
-            grid: vec![vec![LevelGrid::from_str(FIRST_LEVEL.to_string())]],
-            player_start: PLAYER_START_DEFAULT_POS
-        });
+        let paths = vec!["assets/levels/death", "assets/levels/l1", "assets/levels/l2", "assets/levels/l3"];
         Levels {
-            levels,
+            levels: paths.into_iter().map(|x| {
+                from_slice::<IOMap>(&std::fs::read(x).expect("Error reading level!")).expect("Error parsing level!").into_level()
+            }).collect(),
         }
     }
 }
@@ -34,7 +26,7 @@ pub struct Level {
 }
 impl Level {
     pub fn start(&self) -> &LevelGrid {
-        &self.grid[self.player_start[0]][self.player_start[1]]
+        &self.grid[self.player_start[1]][self.player_start[0]]
     }
 }
 
@@ -101,24 +93,96 @@ pub enum GridSpace {
     None,
 }
 impl GridSpace {
-    pub fn to_render_job(&self, x: usize, y: usize, grid_size: f64, offset: [f64; 2]) -> Option<RenderJob> {
-        let bounds = [
+    pub const MAX:usize = 11;
+    pub fn from_id(id: usize) -> GridSpace {
+        match id {
+            0 => GridSpace::None,
+            1 => GridSpace::Block,
+            2 => GridSpace::Spike,
+            3 => GridSpace::Enemy,
+            4 => GridSpace::Goal,
+            5 => GridSpace::StartingLocation,
+            6 => GridSpace::Transition,
+            7 => GridSpace::Wrap,
+            8 => GridSpace::StickyBlock,
+            9 => GridSpace::ConveyerR,
+            10 => GridSpace::ConveyerL,
+            _ => GridSpace::None,
+        }
+    }
+    pub fn location(x: u32, y: u32, grid_size: f64, offset: [f64; 2]) -> [f64; 4] {
+        [
             (x as f64) * grid_size + offset[0], 
             (y as f64) * grid_size + offset[1], 
-            (x as f64 + 1.0) * grid_size + offset[0], 
-            (y as f64 + 1.0) * grid_size + offset[1]];
+            grid_size, 
+            grid_size
+        ]
+    }
+    pub fn to_render_job(&self) -> RenderJob {
+        let bounds = [0.0; 4];
         match self {
-            GridSpace::Block => Some(Rect::new(WHITE, bounds)),
-            GridSpace::Spike => Some(ImageRenderer::new(bounds, RED, SPIKE_TX)),
-            GridSpace::Enemy => Some(Rect::new(RED, bounds)),
-            GridSpace::Goal => Some(ImageRenderer::new(bounds, YELLOW, GOAL_TX)),
-            GridSpace::StartingLocation => Some(Rect::new(GREEN, bounds)),
-            GridSpace::Transition => Some(ImageRenderer::new(bounds, YELLOW, TRANSITION_TX)),
-            GridSpace::Wrap => Some(ImageRenderer::new(bounds, YELLOW, WRAP_TX)),
-            GridSpace::StickyBlock => Some(Rect::new(MAGENTA, bounds)),
-            GridSpace::ConveyerR => Some(ImageRenderer::new(bounds, YELLOW, CONVEYER_R_TX)),
-            GridSpace::ConveyerL => Some(ImageRenderer::new(bounds, YELLOW, CONVEYER_L_TX)),
-            GridSpace::None => None,
+            GridSpace::Block => Rect::new(WHITE, bounds),
+            GridSpace::Spike => ImageRenderer::new(bounds, RED, SPIKE_TX),
+            GridSpace::Enemy => Rect::new(RED, bounds),
+            GridSpace::Goal => ImageRenderer::new(bounds, YELLOW, GOAL_TX),
+            GridSpace::StartingLocation => Rect::new(GREEN, bounds),
+            GridSpace::Transition => ImageRenderer::new(bounds, YELLOW, TRANSITION_TX),
+            GridSpace::Wrap => ImageRenderer::new(bounds, YELLOW, WRAP_TX),
+            GridSpace::StickyBlock => Rect::new(MAGENTA, bounds),
+            GridSpace::ConveyerR => ImageRenderer::new(bounds, YELLOW, CONVEYER_R_TX),
+            GridSpace::ConveyerL => ImageRenderer::new(bounds, YELLOW, CONVEYER_L_TX),
+            GridSpace::None => Rect::new(TRANSPARENT, bounds),
+        }
+    }
+    pub fn alter_render_job(&self, job: &mut RenderJob) {
+        let bounds = *job.bounds();
+        let color = self.color();
+        *job = match self {
+            GridSpace::Block => Rect::new(color, bounds),
+            GridSpace::Spike => ImageRenderer::new(bounds, color, SPIKE_TX),
+            GridSpace::Enemy => Rect::new(color, bounds),
+            GridSpace::Goal => ImageRenderer::new(bounds, color, GOAL_TX),
+            GridSpace::StartingLocation => Rect::new(color, bounds),
+            GridSpace::Transition => ImageRenderer::new(bounds, color, TRANSITION_TX),
+            GridSpace::Wrap => ImageRenderer::new(bounds, color, WRAP_TX),
+            GridSpace::StickyBlock => Rect::new(color, bounds),
+            GridSpace::ConveyerR => ImageRenderer::new(bounds, color, CONVEYER_R_TX),
+            GridSpace::ConveyerL => ImageRenderer::new(bounds, color, CONVEYER_L_TX),
+            GridSpace::None => Rect::new(color, bounds),
+        };
+    }
+    pub fn alter_render_job_mouse(&self, job: &mut RenderJob) {
+        let bounds = *job.bounds();
+        let mut color = self.color();
+        color[3] = 0.5; // half opaque for mouse hovering
+        *job = match self {
+            GridSpace::Block => Rect::new(color, bounds),
+            GridSpace::Spike => ImageRenderer::new(bounds, color, SPIKE_TX),
+            GridSpace::Enemy => Rect::new(color, bounds),
+            GridSpace::Goal => ImageRenderer::new(bounds, color, GOAL_TX),
+            GridSpace::StartingLocation => Rect::new(color, bounds),
+            GridSpace::Transition => ImageRenderer::new(bounds, color, TRANSITION_TX),
+            GridSpace::Wrap => ImageRenderer::new(bounds, color, WRAP_TX),
+            GridSpace::StickyBlock => Rect::new(color, bounds),
+            GridSpace::ConveyerR => ImageRenderer::new(bounds, color, CONVEYER_R_TX),
+            GridSpace::ConveyerL => ImageRenderer::new(bounds, color, CONVEYER_L_TX),
+            GridSpace::None => Rect::new(color, bounds),
+        };
+        
+    }
+    pub fn color(&self) -> [f32; 4] {
+        match self {
+            GridSpace::Block => WHITE,
+            GridSpace::Spike => RED,
+            GridSpace::Enemy => RED,
+            GridSpace::Goal => YELLOW,
+            GridSpace::StartingLocation => GREEN,
+            GridSpace::Transition => YELLOW,
+            GridSpace::Wrap => YELLOW,
+            GridSpace::StickyBlock => MAGENTA,
+            GridSpace::ConveyerR => YELLOW,
+            GridSpace::ConveyerL => YELLOW,
+            GridSpace::None => TRANSPARENT,
         }
     }
 }

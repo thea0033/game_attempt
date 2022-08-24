@@ -1,6 +1,6 @@
-use std::{path::{PathBuf, Path}, io::{stdin}};
+use std::{path::{PathBuf, Path}, io::{stdin}, fmt::Debug};
 
-use consts::{ASSETS_FOLDER, DEFAULT_FONT_PATH};
+use consts::{ASSETS_FOLDER, DEFAULT_FONT_PATH, MEDIT_WINDOW_X, MEDIT_WINDOW_Y, WINDOW_X, WINDOW_Y};
 use internals::Game;
 use medit::Map;
 use opengl_graphics::{TextureSettings, Texture};
@@ -15,6 +15,29 @@ mod input;
 pub mod medit;
 
 fn main() {
+    // each frame... 
+    let mut args = std::env::args();
+    let x:u32;
+    let y:u32;
+    let path = if args.len() > 2 {
+        args.next();
+        if args.next().unwrap() == "edit".to_string() {
+            let path: String = args.next().expect("Safe unwrap");
+            let path = PathBuf::try_from(path).expect("Please enter a valid path!");
+            x = MEDIT_WINDOW_X;
+            y = MEDIT_WINDOW_Y;
+            Some(path)
+        } else {
+            x = WINDOW_X;
+            y = WINDOW_Y;
+            None
+        }
+    } else {
+        x = WINDOW_X;
+        y = WINDOW_Y; 
+        None
+    };
+    
     // sets a font path
     let mut font_path = PathBuf::new();
     // adds to the font path
@@ -25,51 +48,24 @@ fn main() {
     // adds the glyphs 
     let glyphs = opengl_graphics::GlyphCache::from_bytes(&font, (), TextureSettings::new()).unwrap();
     // creates a new window based on that font
-    let mut window = Window::new(vec![glyphs]);
-
-    window.textures.add(Texture::from_path(Path::new("assets\\spikes.png"), &TextureSettings::new()).expect("File not found!"));
-    window.textures.add(Texture::from_path(Path::new("assets\\goal.png"), &TextureSettings::new()).expect("File not found!"));
-    window.textures.add(Texture::from_path(Path::new("assets\\wrap.png"), &TextureSettings::new()).expect("File not found!"));
-    window.textures.add(Texture::from_path(Path::new("assets\\transition.png"), &TextureSettings::new()).expect("File not found!"));
-    window.textures.add(Texture::from_path(Path::new("assets\\conveyerL.png"), &TextureSettings::new()).expect("File not found!"));
-    window.textures.add(Texture::from_path(Path::new("assets\\conveyerR.png"), &TextureSettings::new()).expect("File not found!"));
-    // each frame... 
-    let mut args = std::env::args();
-    let path = if args.len() > 2 {
-        args.next();
-        if args.next().unwrap() == "edit".to_string() {
-            let path: String = args.next().expect("Safe unwrap");
-            let path = PathBuf::try_from(path).expect("Please enter a valid path!");
-            Some(path)
-        } else {
-            None
-        }
-    } else { None };
+    let mut window = Window::new(vec![glyphs], x, y);
+    window.textures.add(Texture::from_path(Path::new("assets\\images\\spikes.png"), &TextureSettings::new()).expect("File not found!"));
+    window.textures.add(Texture::from_path(Path::new("assets\\images\\goal.png"), &TextureSettings::new()).expect("File not found!"));
+    window.textures.add(Texture::from_path(Path::new("assets\\images\\wrap.png"), &TextureSettings::new()).expect("File not found!"));
+    window.textures.add(Texture::from_path(Path::new("assets\\images\\transition.png"), &TextureSettings::new()).expect("File not found!"));
+    window.textures.add(Texture::from_path(Path::new("assets\\images\\conveyerL.png"), &TextureSettings::new()).expect("File not found!"));
+    window.textures.add(Texture::from_path(Path::new("assets\\images\\conveyerR.png"), &TextureSettings::new()).expect("File not found!"));
     if let Some(path) = path {
-        let mut map = Map::load(path.clone(), &mut window.jobs).unwrap_or_else(|_| Map::new(path, &mut window.jobs));
+        let mut map = Map::load(path.clone(), &mut window.jobs).unwrap_or_else(|_| {
+            println!("Error loading map!");
+            Map::new(path, &mut window.jobs)});
         while window.run_loop_iteration() {
             map.tick(&mut window.jobs, &mut window.input);
         }
     } else {
         let mut game = Game::new(&mut window.jobs);
         while window.run_loop_iteration() {
-            game.tick(&mut window.jobs);
-            if window.input.key_down(Key::Left as u32) {
-                game.controls.horizontal_direction = -1.0;
-            }
-            if window.input.key_down(Key::Right as u32) {
-                game.controls.horizontal_direction = 1.0;
-            }
-            if window.input.key_down(Key::Up as u32) {
-                game.controls.vertical_direction = -1.0;
-            }
-            if window.input.key_down(Key::Down as u32) {
-                game.controls.vertical_direction = 1.0;
-            }
-            if window.input.key_down(Key::Space as u32) {
-                game.controls.horizontal_direction = 0.0;
-                game.controls.vertical_direction = 0.0;
-            }
+            game.tick(&mut window.jobs, &mut window.input);
         }
     }
 }

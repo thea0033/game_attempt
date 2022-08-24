@@ -10,7 +10,6 @@ pub struct Object {
     pub x_speed: f64,
     pub y_speed: f64,
     pub job_id: RenderJobID,
-    pub job: Option<RenderJob>,
     pub width: f64,
     pub height: f64,
 }
@@ -64,7 +63,7 @@ impl Object {
             self.x_speed += env.x_accel / NUM_TIMES_F64;
             self.y_speed += env.y_accel / NUM_TIMES_F64;
         }                
-        let extracted_job = self.job.as_mut().xor(jobs.get_job_mut(self.job_id)).expect("safe unwrap");
+        let extracted_job = jobs.get_job_mut(self.job_id).expect("safe unwrap");
         let bounds = extracted_job.bounds();
         bounds[0] = self.x_pos;
         bounds[1] = self.y_pos;
@@ -154,8 +153,7 @@ impl ObjectTemplate {
             y_pos: bounds[1], 
             x_speed: self.x_speed?, 
             y_speed: self.y_speed?, 
-            job_id: id, 
-            job: None, 
+            job_id: id,
             width: bounds[2], 
             height: bounds[3],
         })
@@ -196,6 +194,7 @@ pub enum CollideAction {
     Advance,
     Kill,
     MoveScreen(Direction),
+    Wrap(Direction),
     None
 }
 pub struct Block {
@@ -212,6 +211,7 @@ impl Block {
             Behavior::Wrap => FUDGE,
             Behavior::Portal => FUDGE,
             Behavior::None => 0.0,
+            Behavior::Stick => 0.0,
         }
     }
     pub fn collides(&mut self, player: &mut Object) -> [bool; 4] {
@@ -236,23 +236,28 @@ impl Block {
             Behavior::Kill => return CollideAction::Kill,
             // will eventually be a conveyor belt
             Behavior::Move(dir) => todo!(),
-            Behavior::Advance => {return CollideAction::Advance},
-            Behavior::Wrap => {
-                match direction {
-                    Direction::Up => player.y_pos = FUDGE,
-                    Direction::Down => player.y_pos = consts::WINDOW_Y as f64 - GRID_SIZE - FUDGE,
-                    Direction::Left => player.x_pos = FUDGE,
-                    Direction::Right => player.x_pos = consts::WINDOW_X as f64 - GRID_SIZE - FUDGE,
-                }
-            },
-            Behavior::Portal => {
-                match direction {
-                    Direction::Up => player.y_pos = FUDGE,
-                    Direction::Down => player.y_pos = consts::WINDOW_Y as f64 - GRID_SIZE - FUDGE,
-                    Direction::Left => player.x_pos = FUDGE,
-                    Direction::Right => player.x_pos = consts::WINDOW_X as f64 - GRID_SIZE - FUDGE,
-                }
-                return CollideAction::MoveScreen(direction.opposite())
+            Behavior::Advance => return CollideAction::Advance,
+            Behavior::Wrap => return CollideAction::Wrap(direction),
+            Behavior::Portal => return CollideAction::MoveScreen(direction),
+            Behavior::Stick => match direction {
+                Direction::Up => {
+                    if player.y_speed > 0.0 { player.y_speed = 0.0;}
+                    player.x_speed = 0.0;
+                    ctrl.can_flip = true;
+                },
+                Direction::Down => {
+                    if player.y_speed < 0.0 { player.y_speed = 0.0}
+                    player.x_speed = 0.0;
+                    ctrl.can_flip = true;
+                },
+                Direction::Left => {
+                    player.y_speed = 0.0;
+                    if player.x_speed > 0.0 { player.x_speed = 0.0}
+                },
+                Direction::Right => {
+                    player.y_speed = 0.0;
+                    if player.x_speed < 0.0 { player.x_speed = 0.0}
+                },
             },
             Behavior::None => {},
         }
@@ -272,8 +277,9 @@ pub enum Behavior {
     Wrap,
     Portal,
     None,
+    Stick,
 }
-#[derive(Clone, Copy, Serialize, Deserialize)]
+#[derive(Clone, Copy, Serialize, Deserialize, Debug)]
 pub enum Direction {
     Up,
     Down,

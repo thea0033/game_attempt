@@ -1,6 +1,9 @@
 pub mod rect;
 pub mod text;
 pub mod texture;
+pub mod animation;
+pub mod composite;
+pub mod toggle;
 
 use std::{collections::{BTreeMap}, time::Instant, thread::sleep};
 
@@ -12,7 +15,7 @@ use serde::{Serialize, Deserialize};
 
 use crate::{consts::{OPENGL, TITLE, WINDOW_X, WINDOW_Y, FRAMERATE, LAYER_SIZE, LAYERS, TRANSPARENT}, render::text::TextRenderer, input::InputVars};
 
-use self::{rect::Rect, texture::{TextureBuffer, ImageRenderer}};
+use self::{rect::Rect, texture::{TextureBuffer, ImageRenderer}, toggle::Toggle, composite::Composite};
 
 pub struct Window<'a> {
     pub window: PistonWindow,
@@ -25,8 +28,8 @@ pub struct Window<'a> {
     pub textures: TextureBuffer,
 }
 impl<'a> Window<'a> {
-    pub fn new(fonts: Vec<GlyphCache<'a>>) -> Window<'a> {
-        let window: PistonWindow = WindowSettings::new(TITLE, [WINDOW_X, WINDOW_Y])
+    pub fn new(fonts: Vec<GlyphCache<'a>>, x: u32, y: u32) -> Window<'a> {
+        let window: PistonWindow = WindowSettings::new(TITLE, [x, y])
             .graphics_api(OPENGL)
             .exit_on_esc(true)
             .build()
@@ -37,7 +40,7 @@ impl<'a> Window<'a> {
         Window {window, gl, events, jobs, fonts, last_time: Instant::now(), input: InputVars::new(), textures: TextureBuffer::new()}
     }
     pub fn render(&mut self, args: &RenderArgs) {
-        let job_list: Vec<&RenderJob> = self.jobs.all_jobs().collect();
+        let job_list: Vec<&mut RenderJob> = self.jobs.all_jobs().collect();
         let gl = &mut self.gl;
         let fonts = &mut self.fonts;
         let textures = &self.textures;
@@ -123,12 +126,6 @@ pub struct RenderJobs {
     count: Vec<u64>, // one count is kept per layer
 }
 impl RenderJobs {
-    pub fn clear(&mut self) {
-        self.internal.clear();
-        for line in &mut self.count {
-            *line = 0;
-        }
-    }
     pub fn new() -> RenderJobs {
         RenderJobs { internal: BTreeMap::new(), count: vec![0; LAYERS as usize] }
     }
@@ -150,8 +147,8 @@ impl RenderJobs {
     pub fn remove_job(&mut self, id: RenderJobID) -> Option<RenderJob> {
         self.internal.remove(&id)
     }
-    pub fn all_jobs(&self) -> impl Iterator<Item = &RenderJob> {
-        self.internal.values()
+    pub fn all_jobs(&mut self) -> impl Iterator<Item = &mut RenderJob> {
+        self.internal.values_mut()
     }
     pub fn get_layer(id: RenderJobID) -> u64 {
         id.0 / LAYER_SIZE
@@ -161,12 +158,42 @@ impl RenderJobs {
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct RenderJobID(u64);
 // the type of rendering to be done - a square, a circle, or even an image
-
 #[derive(Clone, Serialize, Deserialize)]
 pub enum RenderJobComponent {
     Rect(Rect),
     Text(TextRenderer),
     Image(ImageRenderer),
+    Composite(Composite),
+    Toggle(Toggle),
+}
+impl RenderJobComponent {
+    pub fn render(&mut self, context: &Context, graphics: &mut GlGraphics, font: &mut Vec<GlyphCache>, textures: &TextureBuffer) {
+        match self {
+            RenderJobComponent::Rect(val) => val.render(context, graphics),
+            RenderJobComponent::Text(val) => val.render(context, graphics, font),
+            RenderJobComponent::Image(val) => val.render(context, graphics, textures),
+            RenderJobComponent::Composite(val) => val.render(context, graphics, font, textures),
+            RenderJobComponent::Toggle(val) => val.render(context, graphics, font, textures),
+        }
+    }
+    pub fn bounds(&mut self) -> &mut [f64; 4] {
+        match self {
+            RenderJobComponent::Rect(val) => &mut val.bounds,
+            RenderJobComponent::Text(val) => &mut val.bounds,
+            RenderJobComponent::Image(val) => &mut val.bounds,
+            RenderJobComponent::Composite(val) => val.bounds(),
+            RenderJobComponent::Toggle(val) => &mut val.bounds,
+        }
+    }
+    pub fn tint(&mut self) -> &mut [f32; 4] {
+        match self {
+            RenderJobComponent::Rect(val) => &mut val.color,
+            RenderJobComponent::Text(val) => &mut val.color,
+            RenderJobComponent::Image(val) => &mut val.tint,
+            RenderJobComponent::Composite(val) => val.tint(),
+            RenderJobComponent::Toggle(val) => &mut val.tint,
+        }
+    }
 }
 #[derive(Clone, Serialize, Deserialize)]
 pub struct RenderJob {
@@ -177,18 +204,12 @@ impl RenderJob {
     pub fn default() -> RenderJob {
         Rect::new(TRANSPARENT, [0.0; 4])
     }
-    fn render(&self, context: &Context, graphics: &mut GlGraphics, font: &mut Vec<GlyphCache>, textures: &TextureBuffer) {
-        match &self.cmp {
-            RenderJobComponent::Rect(val) => val.render(context, graphics),
-            RenderJobComponent::Text(val) => val.render(context, graphics, font),
-            RenderJobComponent::Image(val) => val.render(context, graphics, textures)
+    fn render(&mut self, context: &Context, graphics: &mut GlGraphics, font: &mut Vec<GlyphCache>, textures: &TextureBuffer) {
+        if self.enabled {
+            self.cmp.render(context, graphics, font, textures);
         }
     }
-    pub fn bounds(&mut self) -> &mut [f64; 4] {
-        match &mut self.cmp {
-            RenderJobComponent::Rect(val) => &mut val.bounds,
-            RenderJobComponent::Text(val) => &mut val.bounds,
-            RenderJobComponent::Image(val) => &mut val.bounds,
-        }
+    pub fn bounds(&mut self) -> &mut [f64; 4] { 
+        self.cmp.bounds()
     }
 }

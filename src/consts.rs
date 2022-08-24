@@ -13,7 +13,7 @@ pub use self::layers::*;
 use crate::{render::{text::FontID}};
 pub const ASSETS_FOLDER: &str = "assets";
 // text rendering
-pub const DEFAULT_FONT_PATH: &str = "InconsolataZi4varlvarquRegular-42gD.ttf";
+pub const DEFAULT_FONT_PATH: &str = "fonts\\InconsolataZi4varlvarquRegular-42gD.ttf";
 pub const DEFAULT_FONT_ID: FontID = FontID(0);
 // window stuff
 pub const TITLE:&str = "The Horrible Game";
@@ -28,6 +28,7 @@ pub const WINDOW_Y:u32 = (GRID_SIZE as u32) * TILES_U32;
 pub const MEDIT_TILES: u32 = 22;
 pub const MEDIT_TILE_SIZE: f64 = 40.0;
 pub const MEDIT_EXTRA_ROOM: u32 = 12;// 12 tiles worth of extra room
+pub const MEDIT_GUIDE_SIZE: u32 = 3;
 pub const MEDIT_WINDOW_X: u32 = (MEDIT_TILE_SIZE as u32) * (MEDIT_TILES + MEDIT_EXTRA_ROOM); 
 pub const MEDIT_WINDOW_Y: u32 = (MEDIT_TILE_SIZE as u32) * MEDIT_TILES;
 // Opengl stuff

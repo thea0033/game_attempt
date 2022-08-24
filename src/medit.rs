@@ -3,7 +3,7 @@ use std::{path::PathBuf, fs, mem};
 use piston::Key;
 use serde::{Serialize, Deserialize};
 
-use crate::{internals::levels::{LevelGrid, GridSpace}, render::{RenderJobs, RenderJobID, RenderJob}, input::InputVars, consts::{self, MEDIT_TILE_SIZE, CONTENT_LAYER, MEDIT_TILES}};
+use crate::{internals::levels::{LevelGrid, GridSpace, Level}, render::{RenderJobs, RenderJobID, RenderJob}, input::InputVars, consts::{self, MEDIT_TILE_SIZE, CONTENT_LAYER, MEDIT_TILES, MEDIT_EXTRA_ROOM, MEDIT_GUIDE_SIZE, LEFT_MOUSE, RIGHT_MOUSE}};
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct IOMap {
@@ -17,9 +17,12 @@ impl IOMap {
         grid.contents[0][0] = GridSpace::StartingLocation;
         IOMap { grid: vec![vec![grid]], player_start: [0; 4], size: [1, 1] }
     }
+    pub fn into_level(self) -> Level {
+        Level { grid: self.grid, player_start: [self.player_start[1], self.player_start[0]] }
+    }
 }
 pub struct MapRenderer {
-    pub grid: Vec<Vec<Option<RenderJobID>>>,
+    pub grid: Vec<Vec<RenderJobID>>,
     pub others: Vec<RenderJobID>,
     pub guide: Vec<RenderJobID>,
     pub mouse_hover: RenderJobID,
@@ -36,30 +39,46 @@ impl MapRenderer {
         res
     }
     pub fn init(&mut self, jobs: &mut RenderJobs) {
-        // initializes the guide
+        // initializes the guide/grid
+        for i in 0..consts::MEDIT_TILES {
+            let mut v: Vec<RenderJobID> = Vec::new();
+            for j in 0..consts::MEDIT_TILES {
+                let mut job = RenderJob::default();
+                *job.bounds() = GridSpace::location(j, i, MEDIT_TILE_SIZE, [0.0; 2]);
+                v.push(jobs.add_job(job, CONTENT_LAYER));
+            }
+            self.grid.push(v);
+        }
+        for i in 0..(GridSpace::MAX as u32) {
+            let mut job = GridSpace::from_id(i as usize).to_render_job();
+            *job.bounds() = GridSpace::location(consts::MEDIT_TILES + i % MEDIT_GUIDE_SIZE, i / MEDIT_GUIDE_SIZE, MEDIT_TILE_SIZE, [0.0; 2]);
+            self.guide.push(jobs.add_job(job, consts::UI_LAYER));
+        }
     }
     pub fn clear(&mut self, jobs: &mut RenderJobs) {
-        for line in mem::take(&mut self.grid).into_iter().flatten().flatten() {
-            jobs.remove_job(line);
-        }
         for line in mem::take(&mut self.others) {
             jobs.remove_job(line);
+        }
+        for line in &mut self.grid {
+            for tile in line {
+                GridSpace::None.alter_render_job(jobs.get_job_mut(*tile).unwrap());
+            }
         }
     }
     pub fn load(&mut self, jobs: &mut RenderJobs, to_load: &LevelGrid) {
         self.clear(jobs);
-        let mut res: Vec<Vec<Option<RenderJobID>>> = to_load.contents.iter().enumerate().map(|(x, line)| 
-            line.iter().enumerate().map(|(y, item)| {
-                let job = item.to_render_job(x, y, MEDIT_TILE_SIZE, [0.0, 0.0]);
-                job.map(|x| jobs.add_job(x, CONTENT_LAYER))
-            }
-        ).collect()).collect();
-        let mut others: Vec<RenderJobID> = to_load.others.iter().map(|template| template.object.job.as_ref().map(|x| {
-            let mut new_x = x.clone();
+        for (id, tile) in self.grid.iter().flatten().zip(to_load.contents.iter().flatten()) {
+            tile.alter_render_job(jobs.get_job_mut(*id).unwrap());
+        }
+        let others: Vec<RenderJobID> = to_load.others.iter().map(|template| template.object.job.as_ref().map(|x| {
+            let new_x = x.clone();
             todo!()
         })).flatten().collect();
-        self.grid = res;
         self.others = others;
+    }
+    pub fn replace(&mut self, jobs: &mut RenderJobs, new_item: GridSpace, pos: [usize; 2]) {
+        let id = self.grid[pos[0]][pos[1]];
+        new_item.alter_render_job(jobs.get_job_mut(id).unwrap());
     }
 }
 pub struct Map {
@@ -68,7 +87,8 @@ pub struct Map {
     size: [usize; 2],
     player_start: [usize; 4],
     file_path: PathBuf,
-    renderer: MapRenderer
+    renderer: MapRenderer,
+    current_item: GridSpace,
 }
 /**
  * Keybinds - 
@@ -96,35 +116,44 @@ impl Map {
             current: [0, 0], 
             file_path: path,
             renderer: MapRenderer::new(jobs),
+            current_item: GridSpace::None,
         }
     }
     pub fn tick(&mut self, jobs: &mut RenderJobs, input: &mut InputVars) -> bool {
+        let mouse_pos = MousePos::get(input.mouse_pos);
+
         if input.key_down(Key::LCtrl as u32) || input.key_down(Key::RCtrl as u32) {
             // ctrl + [key]
             if input.key_pressed(Key::Escape as u32) {
                 self.info();
                 return true;
             } else if input.key_pressed(Key::Return as u32) {
-                self.info();
                 if let Err(e) = self.save() {
                     println!("Saving failed: {}", e);
+                } else {
+                    println!("Saved!");
                 }
             } else if input.key_pressed(Key::Up as u32) {
                 self.grow_vert();
+                self.renderer.load(jobs, &self.grid[self.current[1]][self.current[0]]);
                 self.info();
             } else if input.key_pressed(Key::Down as u32) {
+                self.grow_vert_plus();
                 self.down();
-                self.grow_vert();
+                self.renderer.load(jobs, &self.grid[self.current[1]][self.current[0]]);
                 self.info();
             } else if input.key_pressed(Key::Left as u32) {
                 self.grow_horizon();
+                self.renderer.load(jobs, &self.grid[self.current[1]][self.current[0]]);
                 self.info();
             } else if input.key_pressed(Key::Right as u32) {
+                self.grow_horizon_plus();
                 self.right();
-                self.grow_horizon();
+                self.renderer.load(jobs, &self.grid[self.current[1]][self.current[0]]);
                 self.info();
             } else if input.key_pressed(Key::Backspace as u32) {
                 self.shrink_horizon(jobs);
+                self.renderer.load(jobs, &self.grid[self.current[1]][self.current[0]]);
                 self.info();
             }  
         } else if input.key_down(Key::RAlt as u32) || input.key_down(Key::LAlt as u32) {
@@ -138,6 +167,7 @@ impl Map {
                 self.info();
             } else if input.key_pressed(Key::Backspace as u32) {
                 self.shrink_vert(jobs);
+                self.renderer.load(jobs, &self.grid[self.current[1]][self.current[0]]);
                 self.info();
             }
         } else if input.key_down(Key::LShift as u32) || input.key_down(Key::RShift as u32) {
@@ -150,53 +180,86 @@ impl Map {
             // [key]
             if input.key_pressed(Key::Backspace as u32) {
                 self.grid[self.current[1]][self.current[0]] = LevelGrid::new();
+                self.renderer.load(jobs, &self.grid[self.current[1]][self.current[0]]);
                 self.info();
             } else if input.key_pressed(Key::Return as u32) {
                 // exits typing mode
                 todo!()
             } else if input.key_pressed(Key::Up as u32) {
                 self.up();
+                self.renderer.load(jobs, &self.grid[self.current[1]][self.current[0]]);
                 self.info();
             } else if input.key_pressed(Key::Down as u32) {
                 self.down();
+                self.renderer.load(jobs, &self.grid[self.current[1]][self.current[0]]);
                 self.info();
             } else if input.key_pressed(Key::Left as u32) {
                 self.left();
+                self.renderer.load(jobs, &self.grid[self.current[1]][self.current[0]]);
                 self.info();
             } else if input.key_pressed(Key::Right as u32) {
                 self.right();
+                self.renderer.load(jobs, &self.grid[self.current[1]][self.current[0]]);
                 self.info();
             }
         }
-        // TODO: Add mouse functionality (UGGH)
+        if input.mouse_down(LEFT_MOUSE) {
+            if let Some(position) = mouse_pos.grid_location {
+                if let GridSpace::StartingLocation = self.current_item {
+                    self.grid[self.player_start[1]][self.player_start[0]].contents[self.player_start[2]][self.player_start[3]] = GridSpace::None;
+                    if self.player_start[..2] == self.current {
+                        self.renderer.replace(jobs, GridSpace::None, [self.player_start[2], self.player_start[3]]);
+                    }
+                    self.grid[self.current[1]][self.current[0]].contents[position[1]][position[0]] = GridSpace::StartingLocation;
+                    self.player_start = [self.current[0], self.current[1], position[1], position[0]];
+                    self.renderer.replace(jobs, self.current_item.clone(), [position[1], position[0]]);
+                } else {
+                    self.grid[self.current[1]][self.current[0]].contents[position[1]][position[0]] = self.current_item.clone();
+                    self.renderer.replace(jobs, self.current_item.clone(), [position[1], position[0]]);
+                }
+            } else if let Some(position) = mouse_pos.guide_location {
+                let item_index = position[1] * (MEDIT_GUIDE_SIZE as usize) + position[0];
+                self.current_item = GridSpace::from_id(item_index);
+                self.current_item.alter_render_job_mouse(&mut jobs.get_job_mut(self.renderer.mouse_hover).unwrap());
+            }
+        } else if input.mouse_down(RIGHT_MOUSE) {
+            if let Some(position) = mouse_pos.grid_location {
+                self.current_item = self.grid[self.current[1]][self.current[0]].contents[position[1]][position[0]].clone();
+                self.current_item.alter_render_job_mouse(&mut jobs.get_job_mut(self.renderer.mouse_hover).unwrap());
+            } else if let Some(position) = mouse_pos.guide_location {
+                let item_index = position[1] * (MEDIT_GUIDE_SIZE as usize) + position[0];
+                self.current_item = GridSpace::from_id(item_index);
+                self.current_item.alter_render_job_mouse(&mut jobs.get_job_mut(self.renderer.mouse_hover).unwrap());
+            }
+        }
         return false;
-    }
-    // Loads the file into a path buffer. Returns true if successfully loaded. 
-    pub fn reset(&mut self, jobs: &mut RenderJobs) {
-        jobs.clear();
     }
     pub fn info(&self) {
         println!("Grid size: [{}, {}]", self.size[0], self.size[1]);
         println!("Player start: {:?}", self.player_start);
         println!("Current position: {:?}", self.current);
     }
+    // Loads the file into a path buffer. Returns true if successfully loaded. 
     pub fn load(path: PathBuf, jobs: &mut RenderJobs) -> Result<Map, String> {
-        let io_map: IOMap = bincode::deserialize(&fs::read(&path).map_err(|x| x.to_string())?).map_err(|x| x.to_string())?;
+        let io_map: IOMap = serde_json::from_slice(&fs::read(&path).map_err(|x| x.to_string())?).map_err(|x| x.to_string())?;
+        let mut map = Map { 
+            grid: io_map.grid, 
+            current: [0, 0], 
+            size: io_map.size, 
+            player_start: io_map.player_start, 
+            file_path: path,
+            renderer: MapRenderer::new(jobs),
+            current_item: GridSpace::None,
+        };
+        map.renderer.load(jobs, &map.grid[map.current[1]][map.current[0]]);
         Ok(
-            Map { 
-                grid: io_map.grid, 
-                current: [0, 0], 
-                size: io_map.size, 
-                player_start: io_map.player_start, 
-                file_path: path,
-                renderer: MapRenderer::new(jobs),
-            }
+            map
         )
     }
     // Attempts to save the file. Returns true if successfully saved. 
     pub fn save(&mut self) -> Result<(), String> {
         let io_map = self.to_io_map();
-        let data = bincode::serialize(&io_map).map_err(|x| x.to_string())?;
+        let data = serde_json::to_string_pretty(&io_map).map_err(|x| x.to_string())?;
         std::fs::write(self.file_path.clone(), data).map_err(|x| x.to_string())
     }
     pub fn to_io_map(&self) -> IOMap {
@@ -228,13 +291,32 @@ impl Map {
         }
     }
     pub fn grow_vert(&mut self) {
+        // might need to change to index 0 if width and height are wrong
+        if self.player_start[1] >= self.current[1] {
+            self.player_start[1] += 1;
+        }
         self.grid.insert(self.current[1], vec![LevelGrid::new(); self.size[0]]);
+        self.size[1] += 1;
+    }
+    pub fn grow_vert_plus(&mut self) {
+        // might need to change to index 0 if width and height are wrong
+        if self.player_start[1] >= self.current[1] + 1 {
+            self.player_start[1] += 1;
+        }
+        self.grid.insert(self.current[1] + 1, vec![LevelGrid::new(); self.size[0]]);
         self.size[1] += 1;
     }
     pub fn shrink_vert(&mut self, jobs: &mut RenderJobs) {
         if self.size[1] == 1 {
             self.clear(jobs);
             return;
+        }
+        // might need to change to index 0 if width and height are wrong
+        if self.player_start[1] == self.current[1] {
+            self.player_start = [0; 4];
+            self.grid[0][0].contents[0][0] = GridSpace::StartingLocation;
+        } else if self.player_start[1] > self.current[1] {
+            self.player_start[1] -= 1;
         }
         self.grid.remove(self.current[1]);
         self.size[1] -= 1;
@@ -243,12 +325,33 @@ impl Map {
         }
     }
     pub fn grow_horizon(&mut self) {
+        // might need to change to index 1 if width and height are wrong
+        if self.player_start[0] >= self.current[0] {
+            self.player_start[0] += 1;
+        }
         for line in &mut self.grid {
             line.insert(self.current[0], LevelGrid::new());
         }
         self.size[0] += 1;
     }
+    pub fn grow_horizon_plus(&mut self) {
+        // might need to change to index 1 if width and height are wrong
+        if self.player_start[0] >= self.current[0] + 1 {
+            self.player_start[0] += 1;
+        }
+        for line in &mut self.grid {
+            line.insert(self.current[0] + 1, LevelGrid::new());
+        }
+        self.size[0] += 1;
+    }
     pub fn shrink_horizon(&mut self, jobs: &mut RenderJobs) {
+        // might need to change to index 1 if width and height are wrong
+        if self.player_start[0] == self.current[0] {
+            self.player_start = [0; 4];
+            self.grid[0][0].contents[0][0] = GridSpace::StartingLocation;
+        } else if self.player_start[0] > self.current[0] {
+            self.player_start[0] -= 1;
+        }
         if self.size[0] == 1 {
             self.clear(jobs);
             return;
@@ -277,10 +380,13 @@ pub struct MousePos {
 }
 impl MousePos {
     pub fn get(raw: [f64; 2]) -> MousePos {
-        let mouse_location_tiles = [raw[0] / MEDIT_TILE_SIZE, raw[1] / MEDIT_TILE_SIZE];
+        let mouse_location_tiles = [(raw[0] / MEDIT_TILE_SIZE).floor(), (raw[1] / MEDIT_TILE_SIZE).floor()];
         let grid_location = if mouse_location_tiles[0] < (MEDIT_TILES as f64) && mouse_location_tiles[1] < (MEDIT_TILES as f64) {
             Some([mouse_location_tiles[0] as usize, mouse_location_tiles[1] as usize])
         } else {None};
-        MousePos { raw, grid_location, guide_location: () }
+        let guide_location = if mouse_location_tiles[0] >= (MEDIT_TILES as f64) && mouse_location_tiles[1] < (MEDIT_TILES as f64) && mouse_location_tiles[0] < ((MEDIT_TILES as f64) + (MEDIT_GUIDE_SIZE as f64)) {
+            Some([mouse_location_tiles[0] as usize - MEDIT_TILES as usize, mouse_location_tiles[1] as usize])
+        } else {None};
+        MousePos { raw, grid_location, guide_location }
     }
 }
