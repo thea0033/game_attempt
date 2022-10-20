@@ -2,7 +2,7 @@ use graphics::{color::{YELLOW, MAGENTA}};
 use serde::{Serialize, Deserialize};
 use serde_json::from_slice;
 
-use crate::{consts::{self, WHITE, RED, objects::SPIKE_TX, GOAL_TX, GREEN, TRANSITION_TX, WRAP_TX, CONVEYER_L_TX, CONVEYER_R_TX, TRANSPARENT}, render::{RenderJob, rect::Rect, texture::ImageRenderer, RenderJobs}, medit::{IOMap, Map}};
+use crate::{consts::{self, WHITE, RED, objects::SPIKE_TX, GOAL_TX, GREEN, TRANSITION_TX, WRAP_TX, CONVEYOR_L_TX, CONVEYOR_R_TX, TRANSPARENT, BLUE, TRANS_GREEN}, render::{RenderJob, rect::Rect, texture::ImageRenderer}, medit::{IOMap}};
 
 use super::{object::{BlockTemplate}};
 
@@ -87,9 +87,11 @@ pub enum GridSpace {
     // This block is sticky. The player cannot move side to side while touching it downwards, and vice versa. 
     StickyBlock,
     // this block moves the player while it's on it. 
-    ConveyerR,
-    ConveyerL,
+    ConveyorR,
+    ConveyorL,
     // there is nothing here
+    Slime,
+    Water,
     None,
 }
 impl GridSpace {
@@ -105,8 +107,10 @@ impl GridSpace {
             6 => GridSpace::Transition,
             7 => GridSpace::Wrap,
             8 => GridSpace::StickyBlock,
-            9 => GridSpace::ConveyerR,
-            10 => GridSpace::ConveyerL,
+            9 => GridSpace::ConveyorR,
+            10 => GridSpace::ConveyorL,
+            11 => GridSpace::Slime,
+            12 => GridSpace::Water,
             _ => GridSpace::None,
         }
     }
@@ -129,9 +133,11 @@ impl GridSpace {
             GridSpace::Transition => ImageRenderer::new(bounds, YELLOW, TRANSITION_TX),
             GridSpace::Wrap => ImageRenderer::new(bounds, YELLOW, WRAP_TX),
             GridSpace::StickyBlock => Rect::new(MAGENTA, bounds),
-            GridSpace::ConveyerR => ImageRenderer::new(bounds, YELLOW, CONVEYER_R_TX),
-            GridSpace::ConveyerL => ImageRenderer::new(bounds, YELLOW, CONVEYER_L_TX),
+            GridSpace::ConveyorR => ImageRenderer::new(bounds, YELLOW, CONVEYOR_R_TX),
+            GridSpace::ConveyorL => ImageRenderer::new(bounds, YELLOW, CONVEYOR_L_TX),
             GridSpace::None => Rect::new(TRANSPARENT, bounds),
+            GridSpace::Slime => Rect::new(TRANS_GREEN, bounds),
+            GridSpace::Water => Rect::new(BLUE, bounds),
         }
     }
     pub fn alter_render_job(&self, job: &mut RenderJob) {
@@ -146,8 +152,10 @@ impl GridSpace {
             GridSpace::Transition => ImageRenderer::new(bounds, color, TRANSITION_TX),
             GridSpace::Wrap => ImageRenderer::new(bounds, color, WRAP_TX),
             GridSpace::StickyBlock => Rect::new(color, bounds),
-            GridSpace::ConveyerR => ImageRenderer::new(bounds, color, CONVEYER_R_TX),
-            GridSpace::ConveyerL => ImageRenderer::new(bounds, color, CONVEYER_L_TX),
+            GridSpace::ConveyorR => ImageRenderer::new(bounds, color, CONVEYOR_R_TX),
+            GridSpace::ConveyorL => ImageRenderer::new(bounds, color, CONVEYOR_L_TX),
+            GridSpace::Slime => Rect::new(color, bounds),
+            GridSpace::Water => Rect::new(color, bounds),
             GridSpace::None => Rect::new(color, bounds),
         };
     }
@@ -164,8 +172,10 @@ impl GridSpace {
             GridSpace::Transition => ImageRenderer::new(bounds, color, TRANSITION_TX),
             GridSpace::Wrap => ImageRenderer::new(bounds, color, WRAP_TX),
             GridSpace::StickyBlock => Rect::new(color, bounds),
-            GridSpace::ConveyerR => ImageRenderer::new(bounds, color, CONVEYER_R_TX),
-            GridSpace::ConveyerL => ImageRenderer::new(bounds, color, CONVEYER_L_TX),
+            GridSpace::ConveyorR => ImageRenderer::new(bounds, color, CONVEYOR_R_TX),
+            GridSpace::ConveyorL => ImageRenderer::new(bounds, color, CONVEYOR_L_TX),
+            GridSpace::Slime => Rect::new(color, bounds),
+            GridSpace::Water => Rect::new(color, bounds),
             GridSpace::None => Rect::new(color, bounds),
         };
         
@@ -180,8 +190,10 @@ impl GridSpace {
             GridSpace::Transition => YELLOW,
             GridSpace::Wrap => YELLOW,
             GridSpace::StickyBlock => MAGENTA,
-            GridSpace::ConveyerR => YELLOW,
-            GridSpace::ConveyerL => YELLOW,
+            GridSpace::ConveyorR => YELLOW,
+            GridSpace::ConveyorL => YELLOW,
+            GridSpace::Slime => TRANS_GREEN,
+            GridSpace::Water => BLUE,
             GridSpace::None => TRANSPARENT,
         }
     }

@@ -1,18 +1,19 @@
 use piston::Key;
 
-use crate::{consts::{PLAYER_THRUST_H, PLAYER_GRAVITY, NUM_TIMES_F64, objects::{PLAYER_L_INDICATOR, PLAYER_R_INDICATOR, PLAYER_U_INDICATOR, PLAYER_D_INDICATOR}}, render::{RenderJob, composite::Composite}, input::InputVars};
+use crate::{consts::{NUM_TIMES_F64, objects::{PLAYER_L_INDICATOR, PLAYER_R_INDICATOR, PLAYER_U_INDICATOR, PLAYER_D_INDICATOR}, PLAYER_SPEED_X, PLAYER_SPEED_Y}, render::{RenderJob, composite::Composite}, input::InputVars};
 
 use super::object::Object;
-
 pub struct Controls {
     pub horizontal_direction: f64, // left (-1), right (1), or N/A (0)
     pub vertical_direction: f64, // up (-1), down (1), or N/A (0)
-    pub gravity: f64, // up (-1) or down (1). Cannot be changed while in the air. 
-    pub can_flip: bool,
+    pub gravity_y: f64, // up (-1) or down (1). Cannot be changed while in the air. 
+    pub gravity_x: f64, // up (-1), down (1), or neutral (0). Cannot be changed while in slime. 
+    pub can_flip_x: bool,
+    pub can_flip_y: bool,
 }
 impl Controls {
-    pub fn new_level(&mut self, player: &mut Object, renderer: &mut RenderJob, input: &mut InputVars) {
-        let mut composite = Composite::ensure_mut(renderer);
+    pub fn new_level(&mut self, _: &mut Object, renderer: &mut RenderJob, _: &mut InputVars) {
+        let composite = Composite::ensure_mut(renderer);
         composite.toggle_job(PLAYER_L_INDICATOR, false);
         composite.toggle_job(PLAYER_R_INDICATOR, false);
         composite.toggle_job(PLAYER_U_INDICATOR, false);
@@ -21,7 +22,7 @@ impl Controls {
         self.vertical_direction = 0.0;
     }
     pub fn update_player(&mut self, player: &mut Object, renderer: &mut RenderJob, input: &mut InputVars) {
-        let mut composite = Composite::ensure_mut(renderer);
+        let composite = Composite::ensure_mut(renderer);
         if input.key_pressed(Key::Left as u32) {
             composite.toggle_job(PLAYER_L_INDICATOR, true);
             composite.toggle_job(PLAYER_R_INDICATOR, false);
@@ -50,14 +51,18 @@ impl Controls {
             self.horizontal_direction = 0.0;
             self.vertical_direction = 0.0;
         }
-        player.x_speed += self.horizontal_direction * PLAYER_THRUST_H / NUM_TIMES_F64;
-        if self.can_flip && self.vertical_direction != 0.0 {
-            self.gravity = self.vertical_direction;
+        if self.can_flip_x {
+            self.gravity_x = self.horizontal_direction;
         }
-        player.y_speed += self.gravity * PLAYER_GRAVITY / NUM_TIMES_F64;
-        self.can_flip = false;
+        player.x_speed += self.gravity_x * PLAYER_SPEED_X / NUM_TIMES_F64;
+        if self.can_flip_y && self.vertical_direction != 0.0 {
+            self.gravity_y = self.vertical_direction;
+        }
+        player.y_speed += self.gravity_y * PLAYER_SPEED_Y / NUM_TIMES_F64;
+        self.can_flip_y = false;
+        self.can_flip_x = true;
     }
     pub fn new() -> Controls {
-        Controls { horizontal_direction: 0.0, vertical_direction: 0.0, gravity: 1.0, can_flip: false }
+        Controls { horizontal_direction: 0.0, vertical_direction: 0.0, gravity_y: 1.0, gravity_x: 0.0, can_flip_x: true, can_flip_y: false }
     }
 }

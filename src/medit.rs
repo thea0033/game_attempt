@@ -3,7 +3,7 @@ use std::{path::PathBuf, fs, mem};
 use piston::Key;
 use serde::{Serialize, Deserialize};
 
-use crate::{internals::levels::{LevelGrid, GridSpace, Level}, render::{RenderJobs, RenderJobID, RenderJob}, input::InputVars, consts::{self, MEDIT_TILE_SIZE, CONTENT_LAYER, MEDIT_TILES, MEDIT_EXTRA_ROOM, MEDIT_GUIDE_SIZE, LEFT_MOUSE, RIGHT_MOUSE}};
+use crate::{internals::levels::{LevelGrid, GridSpace, Level}, render::{RenderJobs, RenderJobID, RenderJob}, input::InputVars, consts::{self, MEDIT_TILE_SIZE, CONTENT_LAYER, MEDIT_TILES, MEDIT_GUIDE_SIZE, LEFT_MOUSE, RIGHT_MOUSE}};
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct IOMap {

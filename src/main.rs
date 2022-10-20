@@ -1,10 +1,9 @@
-use std::{path::{PathBuf, Path}, io::{stdin}, fmt::Debug};
+use std::{path::{PathBuf, Path}, io::{stdin}};
 
-use consts::{ASSETS_FOLDER, DEFAULT_FONT_PATH, MEDIT_WINDOW_X, MEDIT_WINDOW_Y, WINDOW_X, WINDOW_Y};
+use consts::{ASSETS_FOLDER, DEFAULT_FONT_PATH, MEDIT_WINDOW_X, MEDIT_WINDOW_Y, WINDOW_X, WINDOW_Y, NUM_PARTITIONS, FUDGE};
 use internals::Game;
 use medit::Map;
 use opengl_graphics::{TextureSettings, Texture};
-use piston::Key;
 use render::Window;
 
 mod internals;
@@ -53,8 +52,8 @@ fn main() {
     window.textures.add(Texture::from_path(Path::new("assets\\images\\goal.png"), &TextureSettings::new()).expect("File not found!"));
     window.textures.add(Texture::from_path(Path::new("assets\\images\\wrap.png"), &TextureSettings::new()).expect("File not found!"));
     window.textures.add(Texture::from_path(Path::new("assets\\images\\transition.png"), &TextureSettings::new()).expect("File not found!"));
-    window.textures.add(Texture::from_path(Path::new("assets\\images\\conveyerL.png"), &TextureSettings::new()).expect("File not found!"));
-    window.textures.add(Texture::from_path(Path::new("assets\\images\\conveyerR.png"), &TextureSettings::new()).expect("File not found!"));
+    window.textures.add(Texture::from_path(Path::new("assets\\images\\conveyorL.png"), &TextureSettings::new()).expect("File not found!"));
+    window.textures.add(Texture::from_path(Path::new("assets\\images\\conveyorR.png"), &TextureSettings::new()).expect("File not found!"));
     if let Some(path) = path {
         let mut map = Map::load(path.clone(), &mut window.jobs).unwrap_or_else(|_| {
             println!("Error loading map!");

@@ -1,17 +1,20 @@
 use serde::{Serialize, Deserialize};
 
-use crate::{render::{RenderJobs, RenderJob, RenderJobID}, consts::{NUM_TIMES_F64, FUDGE, self, GRID_SIZE}};
+use crate::{render::{RenderJobs, RenderJob, RenderJobID}, consts::{NUM_TIMES_F64, FUDGE, CONVEYOR_STRENTH, NUM_PARTITIONS, WINDOW_X, WINDOW_Y, GRID_SIZE, WATER_SPEED_MULTI}};
 
-use super::controls::Controls;
+use super::{controls::Controls, partition_map::Partition};
 
 pub struct Object {
     pub x_pos: f64,
     pub y_pos: f64,
     pub x_speed: f64,
     pub y_speed: f64,
+    pub x_speed_multi: f64, // one-frame multiplication of x speed
+    pub y_speed_multi: f64, // one-frame multiplication of y speed`
     pub job_id: RenderJobID,
     pub width: f64,
     pub height: f64,
+    pub partition: Partition,
 }
 impl Object {
     pub fn touching(b1: [f64; 4], b2: [f64; 4]) -> bool {
@@ -33,8 +36,8 @@ impl Object {
         self.collides_bounds(other_bounds)
     }
     pub fn tick(&mut self, envs: &Vec<&Environment>, jobs: &mut RenderJobs) {
-        self.x_pos += self.x_speed / NUM_TIMES_F64;
-        self.y_pos += self.y_speed / NUM_TIMES_F64;
+        self.x_pos += self.x_speed * self.x_speed_multi / NUM_TIMES_F64;
+        self.y_pos += self.y_speed * self.y_speed_multi / NUM_TIMES_F64;
         for env in envs {
             if self.x_speed > 0.0 {
                 self.x_speed -= env.x_friction / NUM_TIMES_F64;
@@ -69,9 +72,30 @@ impl Object {
         bounds[1] = self.y_pos;
         bounds[2] = self.width;
         bounds[3] = self.height;
+        self.x_speed_multi = 1.0;
+        self.y_speed_multi = 1.0;
     }
     pub fn drop(self, jobs: &mut RenderJobs) {
         jobs.remove_job(self.job_id);
+    }
+    pub fn partition(&self) -> Partition {
+        let mut x = 0;
+        let mut y = 0;
+        for i in 0..NUM_PARTITIONS {
+            let min_x = i as f64 * (((WINDOW_X as f64) + GRID_SIZE * 2.0) / (NUM_PARTITIONS as f64)) - GRID_SIZE;
+            let max_x = (i + 1) as f64 * (((WINDOW_X as f64) + GRID_SIZE * 2.0) / (NUM_PARTITIONS as f64)) - GRID_SIZE;
+            if self.x_pos < max_x && (self.x_pos + self.width) > min_x {
+                x += 1;
+            }
+            let min_y = i as f64 * (((WINDOW_Y as f64) + GRID_SIZE * 2.0) / (NUM_PARTITIONS as f64)) - GRID_SIZE;
+            let max_y = (i + 1) as f64 * (((WINDOW_Y as f64) + GRID_SIZE * 2.0) / (NUM_PARTITIONS as f64)) - GRID_SIZE;
+            if self.y_pos < max_y && (self.y_pos + self.height) > min_y {
+                y += 1;
+            }
+            x <<= 1;
+            y <<= 1;
+        }
+        Partition { x, y }
     }
 }
 
@@ -148,7 +172,7 @@ impl ObjectTemplate {
         bounds[2] = self.width? * transform.tile_size[0];
         bounds[3] = self.height? * transform.tile_size[1];
         let id = jobs.add_job(self.job.clone()?, self.layer?);
-        Some(Object { 
+        let mut res = Object { 
             x_pos: bounds[0], 
             y_pos: bounds[1], 
             x_speed: self.x_speed?, 
@@ -156,7 +180,14 @@ impl ObjectTemplate {
             job_id: id,
             width: bounds[2], 
             height: bounds[3],
-        })
+            partition: Partition {
+                x: 0, y: 0,
+            },
+            x_speed_multi: 1.0,
+            y_speed_multi: 1.0,
+        };
+        res.partition = res.partition();
+        Some(res)
     }
     pub fn or(&mut self, other: &ObjectTemplate) {
         self.x_pos = self.x_pos.or(other.x_pos);
@@ -202,16 +233,21 @@ pub struct Block {
     pub behavior: Behavior,
 }
 impl Block {
+    pub fn interactable(&self) -> bool {
+        self.behavior == Behavior::None
+    }
     pub fn shrinkage(&mut self) -> f64 {
         match self.behavior {
             Behavior::Stop => 0.0,
-            Behavior::Kill => FUDGE,
+            Behavior::Kill => FUDGE * 2.0,
             Behavior::Move(_) => 0.0,
             Behavior::Advance => FUDGE * 1.25,
             Behavior::Wrap => FUDGE,
             Behavior::Portal => FUDGE,
             Behavior::None => 0.0,
             Behavior::Stick => 0.0,
+            Behavior::Water => -FUDGE,
+            Behavior::Slime => -FUDGE,
         }
     }
     pub fn collides(&mut self, player: &mut Object) -> [bool; 4] {
@@ -223,19 +259,53 @@ impl Block {
         match self.behavior {
             Behavior::Stop => match direction {
                 Direction::Up => {
+                    if (player.y_speed * player.y_speed_multi) > 0.0 { player.y_speed = 0.0;}
+                    ctrl.can_flip_y = true;
+                },
+                Direction::Down => {
+                    if (player.y_speed * player.y_speed_multi) < 0.0 { player.y_speed = 0.0}
+                    ctrl.can_flip_y = true;
+                },
+                Direction::Left => if (player.x_speed * player.x_speed_multi) > 0.0 { player.x_speed = 0.0},
+                Direction::Right => if (player.x_speed * player.x_speed_multi) < 0.0 { player.x_speed = 0.0},
+            },
+            Behavior::Kill => return CollideAction::Kill,
+            Behavior::Move(dir) => match direction {
+                Direction::Up => {
                     if player.y_speed > 0.0 { player.y_speed = 0.0;}
-                    ctrl.can_flip = true;
+                    ctrl.can_flip_y = true;
+                    if let Direction::Left = dir {
+                        player.x_pos -= CONVEYOR_STRENTH;
+                    } else if let Direction::Right = dir {
+                        player.x_pos += CONVEYOR_STRENTH;
+                    }
                 },
                 Direction::Down => {
                     if player.y_speed < 0.0 { player.y_speed = 0.0}
-                    ctrl.can_flip = true;
+                    ctrl.can_flip_y = true;
+                    if let Direction::Left = dir {
+                        player.x_pos -= CONVEYOR_STRENTH;
+                    } else if let Direction::Right = dir {
+                        player.x_pos += CONVEYOR_STRENTH;
+                    }
                 },
-                Direction::Left => if player.x_speed > 0.0 { player.x_speed = 0.0},
-                Direction::Right => if player.x_speed < 0.0 { player.x_speed = 0.0},
+                Direction::Left => {
+                    if player.x_speed > 0.0 { player.x_speed = 0.0}
+                    if let Direction::Up = dir {
+                        player.y_pos -= CONVEYOR_STRENTH;
+                    } else if let Direction::Down = dir {
+                        player.y_pos += CONVEYOR_STRENTH;
+                    }
+                },
+                Direction::Right => {
+                    if player.x_speed < 0.0 { player.x_speed = 0.0}
+                    if let Direction::Up = dir {
+                        player.y_pos -= CONVEYOR_STRENTH;
+                    } else if let Direction::Down = dir {
+                        player.y_pos += CONVEYOR_STRENTH;
+                    }
+                },
             },
-            Behavior::Kill => return CollideAction::Kill,
-            // will eventually be a conveyor belt
-            Behavior::Move(dir) => todo!(),
             Behavior::Advance => return CollideAction::Advance,
             Behavior::Wrap => return CollideAction::Wrap(direction),
             Behavior::Portal => return CollideAction::MoveScreen(direction),
@@ -243,12 +313,12 @@ impl Block {
                 Direction::Up => {
                     if player.y_speed > 0.0 { player.y_speed = 0.0;}
                     player.x_speed = 0.0;
-                    ctrl.can_flip = true;
+                    ctrl.can_flip_y = true;
                 },
                 Direction::Down => {
                     if player.y_speed < 0.0 { player.y_speed = 0.0}
                     player.x_speed = 0.0;
-                    ctrl.can_flip = true;
+                    ctrl.can_flip_y = true;
                 },
                 Direction::Left => {
                     player.y_speed = 0.0;
@@ -260,15 +330,40 @@ impl Block {
                 },
             },
             Behavior::None => {},
+            Behavior::Water => {
+                player.y_speed_multi = WATER_SPEED_MULTI;
+            },
+            Behavior::Slime => {
+                ctrl.can_flip_x = false;
+            },
         }
         return CollideAction::None;
     }
     pub fn new(object: Object, behavior: Behavior) -> Block {
         Block { object, behavior }
     }
+    pub fn partition(&self) -> Partition {
+        let mut x = 0;
+        let mut y = 0;
+        for i in 0..NUM_PARTITIONS {
+            let min_x = i as f64 * ((WINDOW_X / NUM_PARTITIONS) as f64) - FUDGE;
+            let max_x = (i + 1) as f64 * ((WINDOW_X / NUM_PARTITIONS) as f64) + FUDGE;
+            if self.object.x_pos < max_x && (self.object.x_pos + self.object.width) > min_x {
+                x += 1;
+            }
+            let min_y = i as f64 * ((WINDOW_Y / NUM_PARTITIONS) as f64);
+            let max_y = (i + 1) as f64 * ((WINDOW_Y / NUM_PARTITIONS) as f64);
+            if self.object.y_pos < max_y && (self.object.y_pos + self.object.height) > min_y {
+                y += 1;
+            }
+            x <<= 1;
+            y <<= 1;
+        }
+        Partition { x, y }
+    }
 }
 // how the block interacts with the player on touch
-#[derive(Clone, Copy, Serialize, Deserialize)]
+#[derive(Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum Behavior {
     Stop,
     Kill,
@@ -278,8 +373,10 @@ pub enum Behavior {
     Portal,
     None,
     Stick,
+    Water,
+    Slime,
 }
-#[derive(Clone, Copy, Serialize, Deserialize, Debug)]
+#[derive(Clone, Copy, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub enum Direction {
     Up,
     Down,

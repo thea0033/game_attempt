@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use graphics::Context;
 use opengl_graphics::{GlGraphics, GlyphCache};
 use serde::{Serialize, Deserialize};
@@ -16,11 +14,11 @@ pub struct Composite {
 }
 impl Composite {
     pub fn bounds(&mut self) -> &mut [f64; 4] {
-        self.cache.iter_mut().map(|x| *x = None).collect::<Vec<_>>();
+        self.cache.iter_mut().map(|x| *x = None).for_each(std::mem::drop);
         &mut self.bounds
     }
     pub fn tint(&mut self) -> &mut [f32; 4] {
-        self.cache.iter_mut().map(|x| *x = None).collect::<Vec<_>>();
+        self.cache.iter_mut().map(|x| *x = None).for_each(std::mem::drop);
         &mut self.tint
     }
     pub fn ensure_mut(orig: &mut RenderJob) -> &mut Composite {

@@ -1,5 +1,5 @@
 use graphics::{Context, Rectangle};
-use opengl_graphics::{GlGraphics, GlyphCache};
+use opengl_graphics::{GlGraphics};
 use serde::{Serialize, Deserialize};
 
 use super::{RenderJob, RenderJobComponent};

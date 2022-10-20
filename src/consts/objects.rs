@@ -2,13 +2,13 @@ use graphics::color::{YELLOW, MAGENTA};
 
 use crate::{internals::object::{ObjectTemplate, Environment, BlockTemplate, Behavior, Transform}, render::{rect::Rect, texture::{ImageRenderer, TextureID}, text::TextRenderer, composite::Composite}};
 
-use super::{GRID_SIZE, CONTENT_LAYER, WHITE, RED, UI_LAYER, WINDOW_X, WINDOW_Y, DEFAULT_FONT_ID, GREEN, TILES, MEDIT_TILE_SIZE, MAGNETA};
+use super::{GRID_SIZE, CONTENT_LAYER, WHITE, RED, UI_LAYER, DEFAULT_FONT_ID, GREEN, TILES, MEDIT_TILE_SIZE, MAGNETA, TRANS_GREEN, BLUE};
 pub const SPIKE_TX: TextureID = TextureID(0);
 pub const GOAL_TX: TextureID = TextureID(1);
 pub const WRAP_TX: TextureID = TextureID(2);
 pub const TRANSITION_TX: TextureID = TextureID(3);
-pub const CONVEYER_L_TX: TextureID = TextureID(4);
-pub const CONVEYER_R_TX: TextureID = TextureID(5);
+pub const CONVEYOR_L_TX: TextureID = TextureID(4);
+pub const CONVEYOR_R_TX: TextureID = TextureID(5);
 pub const GAME_TRANSFORM: Transform = Transform {
     tile_offset: [-1.0; 2],
     tile_size: [GRID_SIZE; 2],
@@ -50,8 +50,48 @@ pub const BLOCK: ObjectTemplate = ObjectTemplate {
     job: Some(Rect::new(WHITE, [0.0; 4])),
     layer: Some(CONTENT_LAYER),
 };
+pub const CONVEYOR_L: ObjectTemplate = ObjectTemplate {
+    x_pos: None,
+    y_pos: None,
+    x_speed: Some(0.0),
+    y_speed: Some(0.0),
+    width: Some(1.0),
+    height: Some(1.0),
+    job: Some(ImageRenderer::new([0.0; 4], WHITE, CONVEYOR_L_TX)),
+    layer: Some(CONTENT_LAYER),
+};
+pub const CONVEYOR_R: ObjectTemplate = ObjectTemplate {
+    x_pos: None,
+    y_pos: None,
+    x_speed: Some(0.0),
+    y_speed: Some(0.0),
+    width: Some(1.0),
+    height: Some(1.0),
+    job: Some(ImageRenderer::new([0.0; 4], WHITE, CONVEYOR_R_TX)),
+    layer: Some(CONTENT_LAYER),
+};
 pub const STICKY: ObjectTemplate = ObjectTemplate {
     job: Some(Rect::new(MAGENTA, [0.0; 4])),
+    x_pos: None,
+    y_pos: None,
+    x_speed: Some(0.0),
+    y_speed: Some(0.0),
+    width: Some(1.0),
+    height: Some(1.0),
+    layer: Some(CONTENT_LAYER),
+};
+pub const SLIME: ObjectTemplate = ObjectTemplate {
+    job: Some(Rect::new(TRANS_GREEN, [0.0; 4])),
+    x_pos: None,
+    y_pos: None,
+    x_speed: Some(0.0),
+    y_speed: Some(0.0),
+    width: Some(1.0),
+    height: Some(1.0),
+    layer: Some(CONTENT_LAYER),
+};
+pub const WATER: ObjectTemplate = ObjectTemplate {
+    job: Some(Rect::new(BLUE, [0.0; 4])),
     x_pos: None,
     y_pos: None,
     x_speed: Some(0.0),
@@ -113,7 +153,11 @@ BlockTemplate {
     },
     behavior: Behavior::None
 };
-pub const PLAYER_THRUST_H: f64 = 1.0;
 pub const PLAYER_GRAVITY: f64 = 2.0;
 // levels
 pub const PLAYER_START_DEFAULT_POS: [usize; 2] = [0, 0];
+
+pub const PLAYER_SPEED_X: f64 = 0.04 * GRID_SIZE;
+pub const PLAYER_SPEED_Y: f64 = 0.12 * GRID_SIZE;
+
+pub const WATER_SPEED_MULTI: f64 = -0.1;

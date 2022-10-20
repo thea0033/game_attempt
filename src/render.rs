@@ -1,7 +1,6 @@
 pub mod rect;
 pub mod text;
 pub mod texture;
-pub mod animation;
 pub mod composite;
 pub mod toggle;
 
@@ -13,7 +12,7 @@ use piston::{WindowSettings, RenderArgs, UpdateArgs, Events, EventSettings, Even
 use piston_window::PistonWindow;
 use serde::{Serialize, Deserialize};
 
-use crate::{consts::{OPENGL, TITLE, WINDOW_X, WINDOW_Y, FRAMERATE, LAYER_SIZE, LAYERS, TRANSPARENT}, render::text::TextRenderer, input::InputVars};
+use crate::{consts::{OPENGL, TITLE, FRAMERATE, LAYER_SIZE, LAYERS, TRANSPARENT}, render::text::TextRenderer, input::InputVars};
 
 use self::{rect::Rect, texture::{TextureBuffer, ImageRenderer}, toggle::Toggle, composite::Composite};
 

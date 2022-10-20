@@ -1,18 +1,24 @@
 pub mod object;
 pub mod levels;
 pub mod controls;
+pub mod partition_map;
 
-use std::{mem::take};
+use std::{mem::take, collections::HashMap, hash::Hash};
 
-use crate::{render::{RenderJobs}, consts::{BLOCK, SPIKE, PLAYER_ENV, NUM_TIMES, GOAL, GAME_TRANSFORM, WINDOW_Y, GRID_SIZE, WINDOW_X, FUDGE, player, STICKY}, input::InputVars};
+use crate::{render::{RenderJobs}, consts::{BLOCK, SPIKE, PLAYER_ENV, NUM_TIMES, GOAL, GAME_TRANSFORM, WINDOW_Y, GRID_SIZE, WINDOW_X, FUDGE, player, STICKY, CONVEYOR_R, CONVEYOR_L, SLIME, WATER}, input::InputVars};
 
-use self::{object::{Object, Environment, Block, Behavior, Direction, CollideAction}, levels::{GridSpace, Levels}, controls::Controls};
+use self::{object::{Object, Environment, Block, Behavior, Direction, CollideAction, Transform}, levels::{GridSpace, Levels}, controls::Controls, partition_map::{PartitionMapID, PartitionMap, Partition}};
 
 
 pub struct Game {
     // the contents of a level
     pub player: Option<Object>,
-    pub blocks: Vec<Block>,
+    pub partitioner: PartitionMap,
+    // TODO: Any interactables that move must recalculate their partition every frame. 
+    // This doesn't need to be done immediately due to the lack of interactables. 
+    // Additionally: deleting interactables can be done by setting the entry to None. 
+    pub interactables: Vec<Option<Block>>,
+    pub non_interactables: Vec<Block>,
     pub player_env: Environment,
     pub current_level: usize,
     pub current_pos: [usize; 2],
@@ -22,8 +28,15 @@ pub struct Game {
 }
 impl Game {
     pub fn new(jobs: &mut RenderJobs) -> Game {
-        let mut game = Game { player: None,
-            blocks: Vec::new(),
+        let mut game = Game {
+            player: None,
+            partitioner: PartitionMap::new(
+            Partition {
+                x: 0,
+                y: 0,
+            }),
+            interactables: Vec::new(),
+            non_interactables: Vec::new(),
             player_env: PLAYER_ENV,
             current_level: 1,
             levels: Levels::new(),
@@ -40,51 +53,35 @@ impl Game {
         let grid = &level.grid[level.player_start[1]][level.player_start[0]];
         for (i, line) in grid.contents.iter().enumerate() {
             for (j, block) in line.iter().enumerate() {
-                match block {
-                    GridSpace::Block => {
-                        let object = BLOCK.x_pos(j as f64).y_pos(i as f64).to_object(jobs, &GAME_TRANSFORM).unwrap();
-                        let block = Block::new(object, Behavior::Stop);
-                        self.blocks.push(block);
-                    },
-                    GridSpace::Spike => {
-                        let object = SPIKE.x_pos(j as f64).y_pos(i as f64).to_object(jobs, &GAME_TRANSFORM).unwrap();
-                        let spike = Block::new(object, Behavior::Kill);
-                        self.blocks.push(spike);
-                    },
-                    GridSpace::Enemy => {
-                        todo!()
-                    },
-                    GridSpace::Goal => {
-                        let object = GOAL.x_pos(j as f64).y_pos(i as f64).to_object(jobs, &GAME_TRANSFORM).unwrap();
-                        let goal = Block::new(object, Behavior::Advance);
-                        self.blocks.push(goal);
-                    },
+                let (template, behavior) = match block {
+                    GridSpace::Block => (BLOCK, Behavior::Stop),
+                    GridSpace::Spike => (SPIKE, Behavior::Kill),
+                    GridSpace::Enemy => todo!(),
+                    GridSpace::Goal => (GOAL, Behavior::Advance),
                     GridSpace::StartingLocation => {
                         self.player = Some(player().x_pos(j as f64).y_pos(i as f64).to_object(jobs, &GAME_TRANSFORM).unwrap());
+                        continue;
                     },
-                    GridSpace::None => {},
-                    GridSpace::Transition => {
-                        let object = BLOCK.x_pos(j as f64).y_pos(i as f64).to_object(jobs, &GAME_TRANSFORM).unwrap();
-                        let transitioner = Block::new(object, Behavior::Portal);
-                        self.blocks.push(transitioner);
-                    },
-                    GridSpace::Wrap => {
-                        let object = BLOCK.x_pos(j as f64).y_pos(i as f64).to_object(jobs, &GAME_TRANSFORM).unwrap();
-                        let wrapper = Block::new(object, Behavior::Wrap);
-                        self.blocks.push(wrapper);
-                    },
-                    GridSpace::StickyBlock => {
-                        let object = STICKY.x_pos(j as f64).y_pos(i as f64).to_object(jobs, &GAME_TRANSFORM).unwrap();
-                        let wrapper = Block::new(object, Behavior::Stick);
-                        self.blocks.push(wrapper);
-                    },
-                    GridSpace::ConveyerR => todo!(),
-                    GridSpace::ConveyerL => todo!(),
-                }
+                    GridSpace::None => continue,
+                    GridSpace::Transition => (BLOCK, Behavior::Portal),
+                    GridSpace::Wrap => (BLOCK, Behavior::Wrap),
+                    GridSpace::StickyBlock => (STICKY, Behavior::Stick),
+                    GridSpace::ConveyorR => (CONVEYOR_R, Behavior::Move(Direction::Right)),
+                    GridSpace::ConveyorL => (CONVEYOR_L, Behavior::Move(Direction::Left)),
+                    GridSpace::Slime => (SLIME, Behavior::Slime),
+                    GridSpace::Water => (WATER, Behavior::Water),
+                };
+                let object = template.x_pos(j as f64).y_pos(i as f64).to_object(jobs, &GAME_TRANSFORM).unwrap();
+                let mut block = Block::new(object, behavior);
+                block.object.tick(&Vec::new(), jobs);
+                self.partitioner.add(block.object.partition);
+                self.interactables.push(Some(block));
             }
         }
         for line in &grid.others {
-            self.blocks.push(line.clone().to_block(jobs, &GAME_TRANSFORM).unwrap());
+            let block = line.clone().to_block(jobs, &GAME_TRANSFORM).unwrap();
+            self.partitioner.add(block.object.partition);
+            self.interactables.push(Some(block));
         }
     }
     pub fn dead(&mut self, jobs: &mut RenderJobs) {
@@ -100,58 +97,54 @@ impl Game {
         for line in take(&mut self.player) {
             line.drop(jobs);
         }
-        for line in take(&mut self.blocks) {
-            line.object.drop(jobs);
+        for line in take(&mut self.interactables) {
+            line.map(|x| x.object.drop(jobs));
         }
         self.controls = Controls::new();
+        self.partitioner.clear();
     }
     pub fn drop_table(&mut self, jobs: &mut RenderJobs) {
-        for line in take(&mut self.blocks) {
+        for line in take(&mut self.interactables) {
+            line.map(|x| x.object.drop(jobs));
+        }
+        for line in take(&mut self.non_interactables) {
             line.object.drop(jobs);
         }
+        self.partitioner.clear();
     }
     pub fn load_grid(&mut self, jobs: &mut RenderJobs) {
         self.drop_table(jobs);
         for (i, line) in self.levels.levels[self.current_level].grid[self.current_pos[0]][self.current_pos[1]].contents.iter().enumerate() {
             for (j, block) in line.iter().enumerate() {
-                match block {
-                    GridSpace::Block => {
-                        let object = BLOCK.x_pos(j as f64).y_pos(i as f64).to_object(jobs, &GAME_TRANSFORM).unwrap();
-                        let block = Block::new(object, Behavior::Stop);
-                        self.blocks.push(block);
-                    },
-                    GridSpace::Spike => {
-                        let object = SPIKE.x_pos(j as f64).y_pos(i as f64).to_object(jobs, &GAME_TRANSFORM).unwrap();
-                        let spike = Block::new(object, Behavior::Kill);
-                        self.blocks.push(spike);
-                    },
-                    GridSpace::Enemy => {
-                        todo!()
-                    },
-                    GridSpace::Goal => {
-                        let object = GOAL.x_pos(j as f64).y_pos(i as f64).to_object(jobs, &GAME_TRANSFORM).unwrap();
-                        let goal = Block::new(object, Behavior::Advance);
-                        self.blocks.push(goal);
-                    },
-                    GridSpace::StartingLocation | GridSpace::None => {},
-                    GridSpace::Transition => {
-                        let object = BLOCK.x_pos(j as f64).y_pos(i as f64).to_object(jobs, &GAME_TRANSFORM).unwrap();
-                        let transitioner = Block::new(object, Behavior::Portal);
-                        self.blocks.push(transitioner);
-                    },
-                    GridSpace::Wrap => {
-                        let object = BLOCK.x_pos(j as f64).y_pos(i as f64).to_object(jobs, &GAME_TRANSFORM).unwrap();
-                        let wrapper = Block::new(object, Behavior::Wrap);
-                        self.blocks.push(wrapper);
-                    },
-                    GridSpace::StickyBlock => todo!(),
-                    GridSpace::ConveyerR => todo!(),
-                    GridSpace::ConveyerL => todo!(),
-                }
+                let (template, behavior) = match block {
+                    GridSpace::Block => (BLOCK, Behavior::Stop),
+                    GridSpace::Spike => (SPIKE, Behavior::Kill),
+                    GridSpace::Enemy => todo!(),
+                    GridSpace::Goal => (GOAL, Behavior::Advance),
+                    GridSpace::StartingLocation | GridSpace::None => continue,
+                    GridSpace::Transition => (BLOCK, Behavior::Portal),
+                    GridSpace::Wrap => (BLOCK, Behavior::Wrap),
+                    GridSpace::StickyBlock => (STICKY, Behavior::Stick),
+                    GridSpace::ConveyorR => (CONVEYOR_R, Behavior::Move(Direction::Right)),
+                    GridSpace::ConveyorL => (CONVEYOR_L, Behavior::Move(Direction::Left)),
+                    GridSpace::Slime => (SLIME, Behavior::Slime),
+                    GridSpace::Water => (WATER, Behavior::Water),
+                };
+                let object = template.x_pos(j as f64).y_pos(i as f64).to_object(jobs, &GAME_TRANSFORM).unwrap();
+                let mut block = Block::new(object, behavior);
+                block.object.tick(&Vec::new(), jobs);
+                self.partitioner.add(block.object.partition);
+                self.interactables.push(Some(block));
             }
         }
         for line in &self.levels.levels[self.current_level].start().others {
-            self.blocks.push(line.clone().to_block(jobs, &GAME_TRANSFORM).unwrap());
+            let block = line.clone().to_block(jobs, &GAME_TRANSFORM).unwrap();
+            if block.interactable() {
+                self.partitioner.add(block.object.partition);
+                self.interactables.push(Some(block));
+            } else {
+                self.non_interactables.push(block);
+            }
         }
     }
     pub fn tick(&mut self, jobs: &mut RenderJobs, input: &mut InputVars) {
@@ -159,25 +152,32 @@ impl Game {
         for _ in 0..NUM_TIMES {
             let player = self.player.as_mut().unwrap();
             player.tick(&vec![&self.player_env], jobs);
+            self.partitioner.set_player(player.partition());
             let player_job = jobs.get_job_mut(player.job_id).expect("The player isn't rendered!");
             self.controls.update_player(player, player_job, input);
             let mut action_queue = Vec::new();
-            for block in &mut self.blocks {
-                block.object.tick(&Vec::new(), jobs);
-                let [up, down, left, right] = block.collides(player);
-                if up {
-                    action_queue.push(block.on_touch(player, Direction::Up, &mut self.controls));
-                }
-                if down {
-                    action_queue.push(block.on_touch(player, Direction::Down, &mut self.controls));
-                }
-                if left {
-                    action_queue.push(block.on_touch(player, Direction::Left, &mut self.controls));
-                }
-                if right {
-                    action_queue.push(block.on_touch(player, Direction::Right, &mut self.controls));
+            // let mut counter = 0; // DEBUG
+            for line in &self.partitioner.cache {
+                // counter += 1;
+                if let Some(block) = &mut self.interactables[line.0] {
+                    let [up, down, left, right] = block.collides(player);
+                    if up {
+                        action_queue.push(block.on_touch(player, Direction::Up, &mut self.controls));
+                    }
+                    if down {
+                        action_queue.push(block.on_touch(player, Direction::Down, &mut self.controls));
+                    }
+                    if left {
+                        action_queue.push(block.on_touch(player, Direction::Left, &mut self.controls));
+                    }
+                    if right {
+                        action_queue.push(block.on_touch(player, Direction::Right, &mut self.controls));
+                    }
                 }
             }
+            // println!("NUMBER OF BLOCKS GONE THROUGH: {}", counter);
+            // println!("TOTAL BLOCKS: {}", self.interactables.len());
+            // println!("PLAYER PARTITION: {:?}", player.partition());
             let mut will_die: bool = false;
             let mut will_advance: bool = false;
             let mut will_move_screen: Option<Direction> = None;
