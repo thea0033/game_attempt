@@ -21,35 +21,54 @@ impl Controls {
         self.horizontal_direction = 0.0;
         self.vertical_direction = 0.0;
     }
-    pub fn update_player(&mut self, player: &mut Object, renderer: &mut RenderJob, input: &mut InputVars) {
+    pub fn left(&mut self, player: &mut Object, renderer: &mut RenderJob) {
         let composite = Composite::ensure_mut(renderer);
+        composite.toggle_job(PLAYER_L_INDICATOR, true);
+        composite.toggle_job(PLAYER_R_INDICATOR, false);
+        self.horizontal_direction = -1.0;
+    }
+    pub fn right(&mut self, player: &mut Object, renderer: &mut RenderJob) {
+        let composite = Composite::ensure_mut(renderer);
+        composite.toggle_job(PLAYER_L_INDICATOR, false);
+        composite.toggle_job(PLAYER_R_INDICATOR, true);
+        self.horizontal_direction = 1.0;
+    }
+    pub fn up(&mut self, player: &mut Object, renderer: &mut RenderJob) {
+        let composite = Composite::ensure_mut(renderer);
+        composite.toggle_job(PLAYER_U_INDICATOR, true);
+        composite.toggle_job(PLAYER_D_INDICATOR, false);
+        self.vertical_direction = -1.0;
+    }
+    pub fn down(&mut self, player: &mut Object, renderer: &mut RenderJob) {
+        let composite = Composite::ensure_mut(renderer);
+        composite.toggle_job(PLAYER_U_INDICATOR, false);
+        composite.toggle_job(PLAYER_D_INDICATOR, true);
+        self.vertical_direction = 1.0;
+    }
+    pub fn space(&mut self, player: &mut Object, renderer: &mut RenderJob) {
+        let composite = Composite::ensure_mut(renderer);
+        composite.toggle_job(PLAYER_L_INDICATOR, false);
+        composite.toggle_job(PLAYER_R_INDICATOR, false);
+        composite.toggle_job(PLAYER_U_INDICATOR, false);
+        composite.toggle_job(PLAYER_D_INDICATOR, false);
+        self.horizontal_direction = 0.0;
+        self.vertical_direction = 0.0;
+    }
+    pub fn update_player(&mut self, player: &mut Object, renderer: &mut RenderJob, input: &mut InputVars) {
         if input.key_pressed(Key::Left as u32) {
-            composite.toggle_job(PLAYER_L_INDICATOR, true);
-            composite.toggle_job(PLAYER_R_INDICATOR, false);
-            self.horizontal_direction = -1.0;
+            self.left(player, renderer);
         }
         if input.key_pressed(Key::Right as u32) {
-            composite.toggle_job(PLAYER_L_INDICATOR, false);
-            composite.toggle_job(PLAYER_R_INDICATOR, true);
-            self.horizontal_direction = 1.0;
+            self.right(player, renderer);
         }
         if input.key_pressed(Key::Up as u32) {
-            composite.toggle_job(PLAYER_U_INDICATOR, true);
-            composite.toggle_job(PLAYER_D_INDICATOR, false);
-            self.vertical_direction = -1.0;
+            self.up(player, renderer);
         }
         if input.key_pressed(Key::Down as u32) {
-            composite.toggle_job(PLAYER_U_INDICATOR, false);
-            composite.toggle_job(PLAYER_D_INDICATOR, true);
-            self.vertical_direction = 1.0;
+            self.down(player, renderer);
         }
         if input.key_pressed(Key::Space as u32) {
-            composite.toggle_job(PLAYER_L_INDICATOR, false);
-            composite.toggle_job(PLAYER_R_INDICATOR, false);
-            composite.toggle_job(PLAYER_U_INDICATOR, false);
-            composite.toggle_job(PLAYER_D_INDICATOR, false);
-            self.horizontal_direction = 0.0;
-            self.vertical_direction = 0.0;
+            self.space(player, renderer);
         }
         if self.can_flip_x {
             self.gravity_x = self.horizontal_direction;

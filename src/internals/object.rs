@@ -248,6 +248,7 @@ impl Block {
             Behavior::Stick => 0.0,
             Behavior::Water => -FUDGE,
             Behavior::Slime => -FUDGE,
+            Behavior::Flip => -FUDGE,
         }
     }
     pub fn collides(&mut self, player: &mut Object) -> [bool; 4] {
@@ -255,7 +256,7 @@ impl Block {
         let other_bounds = [self.object.x_pos + shrinkage, self.object.y_pos + shrinkage, self.object.x_pos + self.object.width - shrinkage, self.object.y_pos + self.object.height - shrinkage];
         player.collides_bounds(other_bounds)
     }
-    pub fn on_touch(&mut self, player: &mut Object, direction: Direction, ctrl: &mut Controls) -> CollideAction {
+    pub fn on_touch(&mut self, player: &mut Object, direction: Direction, ctrl: &mut Controls, renderer: &mut RenderJobs) -> CollideAction {
         match self.behavior {
             Behavior::Stop => match direction {
                 Direction::Up => {
@@ -336,6 +337,16 @@ impl Block {
             Behavior::Slime => {
                 ctrl.can_flip_x = false;
             },
+            Behavior::Flip => {
+                println!("ACTIVATING");
+                if ctrl.vertical_direction == 1.0 {
+                    ctrl.up(player, renderer.get_job_mut(player.job_id).expect("safe unwrap"));
+                    player.y_pos -= FUDGE;
+                } else {
+                    ctrl.down(player, renderer.get_job_mut(player.job_id).expect("safe unwrap"));
+                    player.y_pos += FUDGE;
+                }
+            }
         }
         return CollideAction::None;
     }
@@ -375,6 +386,7 @@ pub enum Behavior {
     Stick,
     Water,
     Slime,
+    Flip,
 }
 #[derive(Clone, Copy, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub enum Direction {
@@ -393,3 +405,5 @@ impl Direction{
         }
     }
 }
+
+//NoWay1234

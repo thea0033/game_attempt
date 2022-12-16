@@ -71,7 +71,7 @@ impl MapRenderer {
             tile.alter_render_job(jobs.get_job_mut(*id).unwrap());
         }
         let others: Vec<RenderJobID> = to_load.others.iter().map(|template| template.object.job.as_ref().map(|x| {
-            let new_x = x.clone();
+            let _new_x = x.clone();
             todo!()
         })).flatten().collect();
         self.others = others;
@@ -374,7 +374,7 @@ impl Map {
     }
 }
 pub struct MousePos {
-    raw: [f64; 2],
+    _raw: [f64; 2],
     grid_location: Option<[usize; 2]>,
     guide_location: Option<[usize; 2]>,
 }
@@ -387,6 +387,6 @@ impl MousePos {
         let guide_location = if mouse_location_tiles[0] >= (MEDIT_TILES as f64) && mouse_location_tiles[1] < (MEDIT_TILES as f64) && mouse_location_tiles[0] < ((MEDIT_TILES as f64) + (MEDIT_GUIDE_SIZE as f64)) {
             Some([mouse_location_tiles[0] as usize - MEDIT_TILES as usize, mouse_location_tiles[1] as usize])
         } else {None};
-        MousePos { raw, grid_location, guide_location }
+        MousePos { _raw: raw, grid_location, guide_location }
     }
 }

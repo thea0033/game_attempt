@@ -1,6 +1,6 @@
 use std::{path::{PathBuf, Path}, io::{stdin}};
 
-use consts::{ASSETS_FOLDER, DEFAULT_FONT_PATH, MEDIT_WINDOW_X, MEDIT_WINDOW_Y, WINDOW_X, WINDOW_Y, NUM_PARTITIONS, FUDGE};
+use consts::{ASSETS_FOLDER, DEFAULT_FONT_PATH, MEDIT_WINDOW_X, MEDIT_WINDOW_Y, WINDOW_X, WINDOW_Y};
 use internals::Game;
 use medit::Map;
 use opengl_graphics::{TextureSettings, Texture};

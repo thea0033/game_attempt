@@ -2,7 +2,7 @@ use graphics::{color::{YELLOW, MAGENTA}};
 use serde::{Serialize, Deserialize};
 use serde_json::from_slice;
 
-use crate::{consts::{self, WHITE, RED, objects::SPIKE_TX, GOAL_TX, GREEN, TRANSITION_TX, WRAP_TX, CONVEYOR_L_TX, CONVEYOR_R_TX, TRANSPARENT, BLUE, TRANS_GREEN}, render::{RenderJob, rect::Rect, texture::ImageRenderer}, medit::{IOMap}};
+use crate::{consts::{self, WHITE, RED, objects::SPIKE_TX, GOAL_TX, GREEN, TRANSITION_TX, WRAP_TX, CONVEYOR_L_TX, CONVEYOR_R_TX, TRANSPARENT, BLUE, TRANS_GREEN, TRANS_RED}, render::{RenderJob, rect::Rect, texture::ImageRenderer}, medit::{IOMap}};
 
 use super::{object::{BlockTemplate}};
 
@@ -89,13 +89,15 @@ pub enum GridSpace {
     // this block moves the player while it's on it. 
     ConveyorR,
     ConveyorL,
-    // there is nothing here
     Slime,
     Water,
+    // Flips the player
+    Flipper, 
+    // there is nothing here
     None,
 }
 impl GridSpace {
-    pub const MAX:usize = 11;
+    pub const MAX:usize = 14;
     pub fn from_id(id: usize) -> GridSpace {
         match id {
             0 => GridSpace::None,
@@ -111,6 +113,7 @@ impl GridSpace {
             10 => GridSpace::ConveyorL,
             11 => GridSpace::Slime,
             12 => GridSpace::Water,
+            13 => GridSpace::Flipper,
             _ => GridSpace::None,
         }
     }
@@ -122,63 +125,28 @@ impl GridSpace {
             grid_size
         ]
     }
-    pub fn to_render_job(&self) -> RenderJob {
-        let bounds = [0.0; 4];
+    pub fn job_generator(&self, bounds: [f64; 4], color: [f32; 4]) -> RenderJob {
         match self {
-            GridSpace::Block => Rect::new(WHITE, bounds),
-            GridSpace::Spike => ImageRenderer::new(bounds, RED, SPIKE_TX),
-            GridSpace::Enemy => Rect::new(RED, bounds),
-            GridSpace::Goal => ImageRenderer::new(bounds, YELLOW, GOAL_TX),
-            GridSpace::StartingLocation => Rect::new(GREEN, bounds),
-            GridSpace::Transition => ImageRenderer::new(bounds, YELLOW, TRANSITION_TX),
-            GridSpace::Wrap => ImageRenderer::new(bounds, YELLOW, WRAP_TX),
-            GridSpace::StickyBlock => Rect::new(MAGENTA, bounds),
-            GridSpace::ConveyorR => ImageRenderer::new(bounds, YELLOW, CONVEYOR_R_TX),
-            GridSpace::ConveyorL => ImageRenderer::new(bounds, YELLOW, CONVEYOR_L_TX),
-            GridSpace::None => Rect::new(TRANSPARENT, bounds),
-            GridSpace::Slime => Rect::new(TRANS_GREEN, bounds),
-            GridSpace::Water => Rect::new(BLUE, bounds),
-        }
-    }
-    pub fn alter_render_job(&self, job: &mut RenderJob) {
-        let bounds = *job.bounds();
-        let color = self.color();
-        *job = match self {
-            GridSpace::Block => Rect::new(color, bounds),
             GridSpace::Spike => ImageRenderer::new(bounds, color, SPIKE_TX),
-            GridSpace::Enemy => Rect::new(color, bounds),
             GridSpace::Goal => ImageRenderer::new(bounds, color, GOAL_TX),
-            GridSpace::StartingLocation => Rect::new(color, bounds),
             GridSpace::Transition => ImageRenderer::new(bounds, color, TRANSITION_TX),
-            GridSpace::Wrap => ImageRenderer::new(bounds, color, WRAP_TX),
-            GridSpace::StickyBlock => Rect::new(color, bounds),
             GridSpace::ConveyorR => ImageRenderer::new(bounds, color, CONVEYOR_R_TX),
             GridSpace::ConveyorL => ImageRenderer::new(bounds, color, CONVEYOR_L_TX),
-            GridSpace::Slime => Rect::new(color, bounds),
-            GridSpace::Water => Rect::new(color, bounds),
-            GridSpace::None => Rect::new(color, bounds),
-        };
+            GridSpace::Block | GridSpace::Enemy | GridSpace::StartingLocation | GridSpace::Wrap | GridSpace::StickyBlock
+            | GridSpace::None | GridSpace::Slime | GridSpace::Water | GridSpace::Flipper => Rect::new(color, bounds),
+        }
+    }
+    pub fn to_render_job(&self) -> RenderJob {
+        self.job_generator([0.0; 4], self.color())
+    }
+    pub fn alter_render_job(&self, job: &mut RenderJob) {
+        *job = self.job_generator(*job.bounds(), self.color());
     }
     pub fn alter_render_job_mouse(&self, job: &mut RenderJob) {
         let bounds = *job.bounds();
         let mut color = self.color();
         color[3] = 0.5; // half opaque for mouse hovering
-        *job = match self {
-            GridSpace::Block => Rect::new(color, bounds),
-            GridSpace::Spike => ImageRenderer::new(bounds, color, SPIKE_TX),
-            GridSpace::Enemy => Rect::new(color, bounds),
-            GridSpace::Goal => ImageRenderer::new(bounds, color, GOAL_TX),
-            GridSpace::StartingLocation => Rect::new(color, bounds),
-            GridSpace::Transition => ImageRenderer::new(bounds, color, TRANSITION_TX),
-            GridSpace::Wrap => ImageRenderer::new(bounds, color, WRAP_TX),
-            GridSpace::StickyBlock => Rect::new(color, bounds),
-            GridSpace::ConveyorR => ImageRenderer::new(bounds, color, CONVEYOR_R_TX),
-            GridSpace::ConveyorL => ImageRenderer::new(bounds, color, CONVEYOR_L_TX),
-            GridSpace::Slime => Rect::new(color, bounds),
-            GridSpace::Water => Rect::new(color, bounds),
-            GridSpace::None => Rect::new(color, bounds),
-        };
-        
+        *job = self.job_generator(bounds, color);
     }
     pub fn color(&self) -> [f32; 4] {
         match self {
@@ -195,6 +163,7 @@ impl GridSpace {
             GridSpace::Slime => TRANS_GREEN,
             GridSpace::Water => BLUE,
             GridSpace::None => TRANSPARENT,
+            GridSpace::Flipper => TRANS_RED,
         }
     }
 }

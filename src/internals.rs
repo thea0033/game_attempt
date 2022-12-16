@@ -3,11 +3,11 @@ pub mod levels;
 pub mod controls;
 pub mod partition_map;
 
-use std::{mem::take, collections::HashMap, hash::Hash};
+use std::mem::take;
 
-use crate::{render::{RenderJobs}, consts::{BLOCK, SPIKE, PLAYER_ENV, NUM_TIMES, GOAL, GAME_TRANSFORM, WINDOW_Y, GRID_SIZE, WINDOW_X, FUDGE, player, STICKY, CONVEYOR_R, CONVEYOR_L, SLIME, WATER}, input::InputVars};
+use crate::{render::{RenderJobs}, consts::{BLOCK, SPIKE, PLAYER_ENV, NUM_TIMES, GOAL, GAME_TRANSFORM, WINDOW_Y, GRID_SIZE, WINDOW_X, FUDGE, player, STICKY, CONVEYOR_R, CONVEYOR_L, SLIME, WATER, FLIPPER}, input::InputVars};
 
-use self::{object::{Object, Environment, Block, Behavior, Direction, CollideAction, Transform}, levels::{GridSpace, Levels}, controls::Controls, partition_map::{PartitionMapID, PartitionMap, Partition}};
+use self::{object::{Object, Environment, Block, Behavior, Direction, CollideAction}, levels::{GridSpace, Levels}, controls::Controls, partition_map::{PartitionMap, Partition}};
 
 
 pub struct Game {
@@ -70,6 +70,7 @@ impl Game {
                     GridSpace::ConveyorL => (CONVEYOR_L, Behavior::Move(Direction::Left)),
                     GridSpace::Slime => (SLIME, Behavior::Slime),
                     GridSpace::Water => (WATER, Behavior::Water),
+                    GridSpace::Flipper => (FLIPPER, Behavior::Flip),
                 };
                 let object = template.x_pos(j as f64).y_pos(i as f64).to_object(jobs, &GAME_TRANSFORM).unwrap();
                 let mut block = Block::new(object, behavior);
@@ -129,6 +130,7 @@ impl Game {
                     GridSpace::ConveyorL => (CONVEYOR_L, Behavior::Move(Direction::Left)),
                     GridSpace::Slime => (SLIME, Behavior::Slime),
                     GridSpace::Water => (WATER, Behavior::Water),
+                    GridSpace::Flipper => (FLIPPER, Behavior::Flip),
                 };
                 let object = template.x_pos(j as f64).y_pos(i as f64).to_object(jobs, &GAME_TRANSFORM).unwrap();
                 let mut block = Block::new(object, behavior);
@@ -162,16 +164,16 @@ impl Game {
                 if let Some(block) = &mut self.interactables[line.0] {
                     let [up, down, left, right] = block.collides(player);
                     if up {
-                        action_queue.push(block.on_touch(player, Direction::Up, &mut self.controls));
+                        action_queue.push(block.on_touch(player, Direction::Up, &mut self.controls, jobs));
                     }
                     if down {
-                        action_queue.push(block.on_touch(player, Direction::Down, &mut self.controls));
+                        action_queue.push(block.on_touch(player, Direction::Down, &mut self.controls, jobs));
                     }
                     if left {
-                        action_queue.push(block.on_touch(player, Direction::Left, &mut self.controls));
+                        action_queue.push(block.on_touch(player, Direction::Left, &mut self.controls, jobs));
                     }
                     if right {
-                        action_queue.push(block.on_touch(player, Direction::Right, &mut self.controls));
+                        action_queue.push(block.on_touch(player, Direction::Right, &mut self.controls, jobs));
                     }
                 }
             }

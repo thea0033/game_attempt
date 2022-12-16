@@ -2,7 +2,7 @@ use graphics::color::{YELLOW, MAGENTA};
 
 use crate::{internals::object::{ObjectTemplate, Environment, BlockTemplate, Behavior, Transform}, render::{rect::Rect, texture::{ImageRenderer, TextureID}, text::TextRenderer, composite::Composite}};
 
-use super::{GRID_SIZE, CONTENT_LAYER, WHITE, RED, UI_LAYER, DEFAULT_FONT_ID, GREEN, TILES, MEDIT_TILE_SIZE, MAGNETA, TRANS_GREEN, BLUE};
+use super::{GRID_SIZE, CONTENT_LAYER, WHITE, RED, UI_LAYER, DEFAULT_FONT_ID, GREEN, TILES, MEDIT_TILE_SIZE, MAGNETA, TRANS_GREEN, BLUE, TRANS_RED};
 pub const SPIKE_TX: TextureID = TextureID(0);
 pub const GOAL_TX: TextureID = TextureID(1);
 pub const WRAP_TX: TextureID = TextureID(2);
@@ -92,6 +92,16 @@ pub const SLIME: ObjectTemplate = ObjectTemplate {
 };
 pub const WATER: ObjectTemplate = ObjectTemplate {
     job: Some(Rect::new(BLUE, [0.0; 4])),
+    x_pos: None,
+    y_pos: None,
+    x_speed: Some(0.0),
+    y_speed: Some(0.0),
+    width: Some(1.0),
+    height: Some(1.0),
+    layer: Some(CONTENT_LAYER),
+};
+pub const FLIPPER: ObjectTemplate = ObjectTemplate {
+    job: Some(Rect::new(TRANS_RED, [0.0; 4])),
     x_pos: None,
     y_pos: None,
     x_speed: Some(0.0),
