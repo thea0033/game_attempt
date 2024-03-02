@@ -193,7 +193,7 @@ pub const PLAYER_GRAVITY: f64 = 2.0;
 // levels
 pub const PLAYER_START_DEFAULT_POS: [usize; 2] = [0, 0];
 
-pub const PLAYER_SPEED_X: f64 = 0.04 * GRID_SIZE;
+pub const PLAYER_SPEED_X: f64 = 0.06 * GRID_SIZE;
 pub const PLAYER_SPEED_Y: f64 = 0.12 * GRID_SIZE;
 
 pub const WATER_SPEED_MULTI: f64 = -0.1;
