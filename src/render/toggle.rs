@@ -1,8 +1,8 @@
 use graphics::Context;
 use opengl_graphics::{GlGraphics, GlyphCache};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
-use super::{RenderJobComponent, RenderJob, texture::TextureBuffer};
+use super::{texture::TextureBuffer, RenderJob, RenderJobComponent};
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Toggle {
@@ -13,20 +13,31 @@ pub struct Toggle {
     pub anim: bool, // if true, enabled increases by 1 each frames
 }
 impl Toggle {
-    pub fn new(possibilities: Vec<RenderJobComponent>, enabled: usize, bounds: [f64; 4], tint: [f32; 4], animation: bool) -> RenderJob {
-        RenderJob {enabled: true, 
-            cmp: RenderJobComponent::Toggle(
-                Toggle {
-                    jobs: possibilities,
-                    enabled,
-                    bounds,
-                    tint,
-                    anim: animation,
-                }
-            )
+    pub fn new(
+        possibilities: Vec<RenderJobComponent>,
+        enabled: usize,
+        bounds: [f64; 4],
+        tint: [f32; 4],
+        animation: bool,
+    ) -> RenderJob {
+        RenderJob {
+            enabled: true,
+            cmp: RenderJobComponent::Toggle(Toggle {
+                jobs: possibilities,
+                enabled,
+                bounds,
+                tint,
+                anim: animation,
+            }),
         }
     }
-    pub fn render(&mut self, context: &Context, graphics: &mut GlGraphics, font: &mut Vec<GlyphCache>, textures: &TextureBuffer) {
+    pub fn render(
+        &mut self,
+        context: &Context,
+        graphics: &mut GlGraphics,
+        font: &mut Vec<GlyphCache>,
+        textures: &TextureBuffer,
+    ) {
         let mut job2 = self.jobs[self.enabled].clone();
         let bounds = job2.bounds();
         bounds[0] = self.bounds[0] + bounds[0] * self.bounds[2];
@@ -41,6 +52,20 @@ impl Toggle {
         job2.render(context, graphics, font, textures);
         if self.anim {
             self.enabled = (self.enabled + 1) % self.jobs.len();
+        }
+    }
+    // Attempts to convert a renderjob into a toggle object. Panics if it fails. 
+    pub fn ensure_mut(orig: &mut RenderJob) -> &mut Toggle {
+        match &mut orig.cmp {
+            RenderJobComponent::Toggle(res) => res,
+            _ => panic!("Ensure failed!"),
+        }
+    }
+    // Attempts to convert a renderjob into a toggle object. Panics if it fails. 
+    pub fn ensure(orig: &RenderJob) -> &Toggle {
+        match &orig.cmp {
+            RenderJobComponent::Toggle(res) => res,
+            _ => panic!("Ensure failed!"),
         }
     }
 }

@@ -1,9 +1,9 @@
 use std::borrow::Cow;
 
-use graphics::{types::FontSize, Context, Text, CharacterCache, Transformed};
+use graphics::{types::FontSize, CharacterCache, Context, Text, Transformed};
 use opengl_graphics::{GlGraphics, GlyphCache};
 use piston::Size;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 use super::{RenderJob, RenderJobComponent};
 
@@ -20,38 +20,63 @@ pub struct TextRenderer {
     pub font: FontID,
 }
 impl TextRenderer {
-    pub const fn new(text: String, bounds: [f64; 4], color: [f32; 4], size: FontSize, halign: i8, valign: i8, font: FontID) -> RenderJob {
-        RenderJob{cmp: RenderJobComponent::Text(TextRenderer {
-            text: Cow::Owned(text),
-            bounds,
-            color,
-            size,
-            halign,
-            valign,
-            font,
-        }), enabled: true}
+    pub const fn new(
+        text: String,
+        bounds: [f64; 4],
+        color: [f32; 4],
+        size: FontSize,
+        halign: i8,
+        valign: i8,
+        font: FontID,
+    ) -> RenderJob {
+        RenderJob {
+            cmp: RenderJobComponent::Text(TextRenderer {
+                text: Cow::Owned(text),
+                bounds,
+                color,
+                size,
+                halign,
+                valign,
+                font,
+            }),
+            enabled: true,
+        }
     }
-    pub const fn new_ref(text: &'static str, bounds: [f64; 4], color: [f32; 4], size: FontSize, halign: i8, valign: i8, font: FontID) -> RenderJob {
-        RenderJob {cmp: RenderJobComponent::Text(TextRenderer {
-            text: Cow::Borrowed(text),
-            bounds,
-            color,
-            size,
-            halign,
-            valign,
-            font,
-        }), enabled: true}
+    pub const fn new_ref(
+        text: &'static str,
+        bounds: [f64; 4],
+        color: [f32; 4],
+        size: FontSize,
+        halign: i8,
+        valign: i8,
+        font: FontID,
+    ) -> RenderJob {
+        RenderJob {
+            cmp: RenderJobComponent::Text(TextRenderer {
+                text: Cow::Borrowed(text),
+                bounds,
+                color,
+                size,
+                halign,
+                valign,
+                font,
+            }),
+            enabled: true,
+        }
     }
+    
+    // Attempts to convert a renderjob into a text object. Panics if it fails. 
     pub fn ensure_mut(orig: &mut RenderJob) -> &mut TextRenderer {
         match &mut orig.cmp {
             RenderJobComponent::Text(res) => res,
-            _ => panic!("Ensure failed!")
+            _ => panic!("Ensure failed!"),
         }
     }
+    // Attempts to convert a renderjob into a text object. Panics if it fails. 
     pub fn ensure(orig: &RenderJob) -> &TextRenderer {
         match &orig.cmp {
             RenderJobComponent::Text(res) => res,
-            _ => panic!("Ensure failed!")
+            _ => panic!("Ensure failed!"),
         }
     }
     pub fn render(&self, context: &Context, graphics: &mut GlGraphics, font: &mut Vec<GlyphCache>) {
@@ -79,15 +104,21 @@ impl TextRenderer {
 
         let transform = context.transform.trans(x, y);
         let draw_state = context.draw_state;
-        t.draw(&self.text, &mut font[self.font.0], &draw_state, transform, graphics).unwrap();
+        t.draw(
+            &self.text,
+            &mut font[self.font.0],
+            &draw_state,
+            transform,
+            graphics,
+        )
+        .unwrap();
     }
 }
 fn measure(text: &str, cache: &mut GlyphCache, fs: FontSize) -> Size {
     let mut w = 0.0;
     let mut h = 0.0;
     for ch in text.chars() {
-        let character = cache.character(fs, ch)
-            .ok().unwrap();
+        let character = cache.character(fs, ch).ok().unwrap();
         let (left, top) = (character.left(), character.top());
         w += character.advance_width() + left;
         h = (character.advance_height() + top).max(h);

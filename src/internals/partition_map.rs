@@ -9,7 +9,12 @@ pub struct PartitionMap {
 }
 impl PartitionMap {
     pub fn new(player: Partition) -> PartitionMap {
-        let mut res = PartitionMap { player, map: HashMap::new(), next_id: 0, cache: Vec::new() };
+        let mut res = PartitionMap {
+            player,
+            map: HashMap::new(),
+            next_id: 0,
+            cache: Vec::new(),
+        };
         res.reset_cache();
         res
     }
@@ -29,7 +34,7 @@ impl PartitionMap {
     pub fn set_player(&mut self, map: Partition) {
         if self.player != map {
             self.player = map;
-            self.reset_cache();   
+            self.reset_cache();
         }
     }
     pub fn reset_cache(&mut self) {
@@ -49,7 +54,7 @@ impl PartitionMap {
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Partition {
     pub x: u64, // simple partition indicator. In binary, 1 means the object is inside this partition, 0 means it is not.
-    pub y: u64, 
+    pub y: u64,
 }
 impl Partition {
     pub fn collides(&self, other: &Partition) -> bool {

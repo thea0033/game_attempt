@@ -1,6 +1,5 @@
 use std::collections::HashSet;
 
-
 pub struct InputVars {
     key_down: HashSet<u32>,
     key_changed: HashSet<u32>,
@@ -14,7 +13,17 @@ pub struct InputVars {
 }
 impl InputVars {
     pub fn new() -> InputVars {
-        InputVars { key_down: HashSet::new(), key_changed: HashSet::new(), mouse_pressed: 0, mouse_changed: 0, mouse_pos: [0.0, 0.0], has_focus: true, has_cursor: true, dimensions: [0.0, 0.0], text_buffer: String::new() }
+        InputVars {
+            key_down: HashSet::new(),
+            key_changed: HashSet::new(),
+            mouse_pressed: 0,
+            mouse_changed: 0,
+            mouse_pos: [0.0, 0.0],
+            has_focus: true,
+            has_cursor: true,
+            dimensions: [0.0, 0.0],
+            text_buffer: String::new(),
+        }
     }
     // should happen every frame
     pub fn reset(&mut self) {

@@ -1,8 +1,8 @@
 use graphics::Context;
 use opengl_graphics::{GlGraphics, GlyphCache};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
-use super::{RenderJobComponent, texture::TextureBuffer, RenderJob};
+use super::{texture::TextureBuffer, RenderJob, RenderJobComponent};
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Composite {
@@ -14,18 +14,32 @@ pub struct Composite {
 }
 impl Composite {
     pub fn bounds(&mut self) -> &mut [f64; 4] {
-        self.cache.iter_mut().map(|x| *x = None).for_each(std::mem::drop);
+        self.cache
+            .iter_mut()
+            .map(|x| *x = None)
+            .for_each(std::mem::drop);
         &mut self.bounds
     }
     pub fn tint(&mut self) -> &mut [f32; 4] {
-        self.cache.iter_mut().map(|x| *x = None).for_each(std::mem::drop);
+        self.cache
+            .iter_mut()
+            .map(|x| *x = None)
+            .for_each(std::mem::drop);
         &mut self.tint
     }
+    // Attempts to convert a renderjob into a composite. Panics if it fails. 
     pub fn ensure_mut(orig: &mut RenderJob) -> &mut Composite {
-        if let RenderJobComponent::Composite(ref mut cmp) = orig.cmp {
-            return cmp;
+        match &mut orig.cmp {
+            RenderJobComponent::Composite(res) => res,
+            _ => panic!("Ensure failed!"),
         }
-        panic!("RenderJob is not a Composite");
+    }
+    // Attempts to convert a renderjob into a composite. Panics if it fails. 
+    pub fn ensure(orig: &RenderJob) -> &Composite {
+        match &orig.cmp {
+            RenderJobComponent::Composite(res) => res,
+            _ => panic!("Ensure failed!"),
+        }
     }
     pub fn new(bounds: [f64; 4], tint: [f32; 4]) -> RenderJob {
         RenderJob {
@@ -36,7 +50,7 @@ impl Composite {
                 cache: Vec::new(),
                 bounds,
                 tint,
-            })
+            }),
         }
     }
     pub fn add_job(&mut self, job: RenderJob, enabled: bool) {
@@ -65,7 +79,13 @@ impl Composite {
         self.cache[index] = None;
         &mut self.jobs[index]
     }
-    pub fn render(&mut self, context: &Context, graphics: &mut GlGraphics, font: &mut Vec<GlyphCache>, textures: &TextureBuffer) {
+    pub fn render(
+        &mut self,
+        context: &Context,
+        graphics: &mut GlGraphics,
+        font: &mut Vec<GlyphCache>,
+        textures: &TextureBuffer,
+    ) {
         for i in 0..self.cache.len() {
             if self.enabled[i] {
                 if let None = self.cache[i] {

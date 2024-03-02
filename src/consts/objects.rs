@@ -1,26 +1,45 @@
-use graphics::color::{YELLOW, MAGENTA};
+use graphics::color::{MAGENTA, YELLOW};
 
-use crate::{internals::object::{ObjectTemplate, Environment, BlockTemplate, Behavior, Transform}, render::{rect::Rect, texture::{ImageRenderer, TextureID}, text::TextRenderer, composite::Composite}};
+use crate::{
+    internals::object::{Behavior, BlockTemplate, Environment, ObjectTemplate, Transform},
+    render::{
+        composite::Composite,
+        rect::Rect,
+        text::TextRenderer,
+        texture::{ImageRenderer, TextureID},
+    },
+};
 
-use super::{GRID_SIZE, CONTENT_LAYER, WHITE, RED, UI_LAYER, DEFAULT_FONT_ID, GREEN, TILES, MEDIT_TILE_SIZE, MAGNETA, TRANS_GREEN, BLUE, TRANS_RED};
+use super::{
+    BLUE, CONTENT_LAYER, DEFAULT_FONT_ID, GREEN, GRID_SIZE, MAGNETA, MEDIT_TILE_SIZE, RED, TILES,
+    TRANS_GREEN, TRANS_RED, UI_LAYER, WHITE,
+};
+
+// textures based on IDs
 pub const SPIKE_TX: TextureID = TextureID(0);
 pub const GOAL_TX: TextureID = TextureID(1);
 pub const WRAP_TX: TextureID = TextureID(2);
 pub const TRANSITION_TX: TextureID = TextureID(3);
 pub const CONVEYOR_L_TX: TextureID = TextureID(4);
 pub const CONVEYOR_R_TX: TextureID = TextureID(5);
+
 pub const GAME_TRANSFORM: Transform = Transform {
     tile_offset: [-1.0; 2],
     tile_size: [GRID_SIZE; 2],
 };
+
 pub const MEDIT_TRANSFORM: Transform = Transform {
     tile_offset: [0.0; 2],
     tile_size: [MEDIT_TILE_SIZE; 2],
 };
+
+// left/right/up/down visual feedback that's all a part of the player
 pub const PLAYER_L_INDICATOR: usize = 1;
 pub const PLAYER_R_INDICATOR: usize = 2;
 pub const PLAYER_U_INDICATOR: usize = 3;
 pub const PLAYER_D_INDICATOR: usize = 4;
+
+// creates a player object, and returns a template. 
 pub fn player() -> ObjectTemplate {
     let mut player_job = Composite::new([0.0; 4], WHITE);
     let composite = Composite::ensure_mut(&mut player_job);
@@ -29,15 +48,15 @@ pub fn player() -> ObjectTemplate {
     composite.add_job(Rect::new(MAGNETA, [0.8, 0.45, 0.1, 0.1]), false); // rightward movement indicator
     composite.add_job(Rect::new(RED, [0.1, 0.05, 0.8, 0.05]), false); // upward movement indicator
     composite.add_job(Rect::new(RED, [0.1, 0.9, 0.8, 0.05]), false); // downward movement indicator
-    ObjectTemplate { 
-        x_pos: None, 
-        y_pos: None, 
-        x_speed: Some(0.0), 
-        y_speed: Some(0.0), 
-        width: Some(0.98), 
-        height: Some(0.98), 
-        job: Some(player_job), 
-        layer: Some(UI_LAYER - 1)
+    ObjectTemplate {
+        x_pos: None,
+        y_pos: None,
+        x_speed: Some(0.0),
+        y_speed: Some(0.0),
+        width: Some(0.98),
+        height: Some(0.98),
+        job: Some(player_job),
+        layer: Some(UI_LAYER - 1),
     }
 }
 pub const BLOCK: ObjectTemplate = ObjectTemplate {
@@ -149,8 +168,7 @@ pub const PLAYER_ENV: Environment = Environment {
     y_friction: 0.1,
 };
 pub const DEATH_TEXT: &str = "You died!";
-pub const DEATH_TEXT_OBJ: BlockTemplate = 
-BlockTemplate {
+pub const DEATH_TEXT_OBJ: BlockTemplate = BlockTemplate {
     object: ObjectTemplate {
         x_pos: Some(0.0),
         y_pos: Some(0.0),
@@ -158,10 +176,18 @@ BlockTemplate {
         y_speed: Some(0.0),
         width: Some(TILES as f64),
         height: Some(TILES as f64),
-        job: Some(TextRenderer::new_ref(DEATH_TEXT, [0.0; 4], RED, GRID_SIZE as u32, 0, 0, DEFAULT_FONT_ID)),
+        job: Some(TextRenderer::new_ref(
+            DEATH_TEXT,
+            [0.0; 4],
+            RED,
+            GRID_SIZE as u32,
+            0,
+            0,
+            DEFAULT_FONT_ID,
+        )),
         layer: Some(UI_LAYER),
     },
-    behavior: Behavior::None
+    behavior: Behavior::None,
 };
 pub const PLAYER_GRAVITY: f64 = 2.0;
 // levels

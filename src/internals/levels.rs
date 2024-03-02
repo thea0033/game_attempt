@@ -1,10 +1,17 @@
-use graphics::{color::{YELLOW, MAGENTA}};
-use serde::{Serialize, Deserialize};
+use graphics::color::{MAGENTA, YELLOW};
+use serde::{Deserialize, Serialize};
 use serde_json::from_slice;
 
-use crate::{consts::{self, WHITE, RED, objects::SPIKE_TX, GOAL_TX, GREEN, TRANSITION_TX, WRAP_TX, CONVEYOR_L_TX, CONVEYOR_R_TX, TRANSPARENT, BLUE, TRANS_GREEN, TRANS_RED}, render::{RenderJob, rect::Rect, texture::ImageRenderer}, medit::{IOMap}};
+use crate::{
+    consts::{
+        self, objects::SPIKE_TX, BLUE, CONVEYOR_L_TX, CONVEYOR_R_TX, GOAL_TX, GREEN, RED,
+        TRANSITION_TX, TRANSPARENT, TRANS_GREEN, TRANS_RED, WHITE, WRAP_TX,
+    },
+    medit::IOMap,
+    render::{rect::Rect, texture::ImageRenderer, RenderJob},
+};
 
-use super::{object::{BlockTemplate}};
+use super::object::BlockTemplate;
 
 pub struct Levels {
     pub levels: Vec<Level>,
@@ -12,17 +19,27 @@ pub struct Levels {
 }
 impl Levels {
     pub fn new() -> Levels {
-        let paths = vec!["assets/levels/death", "assets/levels/l1", "assets/levels/l2", "assets/levels/l3"];
+        let paths = vec![
+            "assets/levels/death",
+            "assets/levels/l1",
+            "assets/levels/l2",
+            "assets/levels/l3",
+        ];
         Levels {
-            levels: paths.into_iter().map(|x| {
-                from_slice::<IOMap>(&std::fs::read(x).expect("Error reading level!")).expect("Error parsing level!").into_level()
-            }).collect(),
+            levels: paths
+                .into_iter()
+                .map(|x| {
+                    from_slice::<IOMap>(&std::fs::read(x).expect("Error reading level!"))
+                        .expect("Error parsing level!")
+                        .into_level()
+                })
+                .collect(),
         }
     }
 }
 pub struct Level {
     pub grid: Vec<Vec<LevelGrid>>,
-    pub player_start: [usize; 2]
+    pub player_start: [usize; 2],
 }
 impl Level {
     pub fn start(&self) -> &LevelGrid {
@@ -37,7 +54,10 @@ pub struct LevelGrid {
 }
 impl LevelGrid {
     pub fn new() -> LevelGrid {
-        LevelGrid { contents: vec![vec![GridSpace::None; consts::TILES + 2]; consts::TILES + 2], others: Vec::new() }
+        LevelGrid {
+            contents: vec![vec![GridSpace::None; consts::TILES + 2]; consts::TILES + 2],
+            others: Vec::new(),
+        }
     }
     // DEPRECATED
     pub fn from_str(contents: String) -> LevelGrid {
@@ -60,7 +80,10 @@ impl LevelGrid {
                 _ => {}
             }
         }
-        LevelGrid { contents: res, others: Vec::new() }
+        LevelGrid {
+            contents: res,
+            others: Vec::new(),
+        }
     }
     pub fn add_others(mut self, others: Vec<BlockTemplate>) -> Self {
         self.others = others;
@@ -80,24 +103,24 @@ pub enum GridSpace {
     Goal,
     // a player starts here
     StartingLocation,
-    // if the player goes here and is on the edge of the board, they move to another level. 
+    // if the player goes here and is on the edge of the board, they move to another level.
     Transition,
-    // if the player goes here and is on the edge of the board, they move to the other side of THIS level. 
+    // if the player goes here and is on the edge of the board, they move to the other side of THIS level.
     Wrap,
-    // This block is sticky. The player cannot move side to side while touching it downwards, and vice versa. 
+    // This block is sticky. The player cannot move side to side while touching it downwards, and vice versa.
     StickyBlock,
-    // this block moves the player while it's on it. 
+    // this block moves the player while it's on it.
     ConveyorR,
     ConveyorL,
     Slime,
     Water,
     // Flips the player
-    Flipper, 
+    Flipper,
     // there is nothing here
     None,
 }
 impl GridSpace {
-    pub const MAX:usize = 14;
+    pub const MAX: usize = 14;
     pub fn from_id(id: usize) -> GridSpace {
         match id {
             0 => GridSpace::None,
@@ -119,10 +142,10 @@ impl GridSpace {
     }
     pub fn location(x: u32, y: u32, grid_size: f64, offset: [f64; 2]) -> [f64; 4] {
         [
-            (x as f64) * grid_size + offset[0], 
-            (y as f64) * grid_size + offset[1], 
-            grid_size, 
-            grid_size
+            (x as f64) * grid_size + offset[0],
+            (y as f64) * grid_size + offset[1],
+            grid_size,
+            grid_size,
         ]
     }
     pub fn job_generator(&self, bounds: [f64; 4], color: [f32; 4]) -> RenderJob {
@@ -132,8 +155,15 @@ impl GridSpace {
             GridSpace::Transition => ImageRenderer::new(bounds, color, TRANSITION_TX),
             GridSpace::ConveyorR => ImageRenderer::new(bounds, color, CONVEYOR_R_TX),
             GridSpace::ConveyorL => ImageRenderer::new(bounds, color, CONVEYOR_L_TX),
-            GridSpace::Block | GridSpace::Enemy | GridSpace::StartingLocation | GridSpace::Wrap | GridSpace::StickyBlock
-            | GridSpace::None | GridSpace::Slime | GridSpace::Water | GridSpace::Flipper => Rect::new(color, bounds),
+            GridSpace::Block
+            | GridSpace::Enemy
+            | GridSpace::StartingLocation
+            | GridSpace::Wrap
+            | GridSpace::StickyBlock
+            | GridSpace::None
+            | GridSpace::Slime
+            | GridSpace::Water
+            | GridSpace::Flipper => Rect::new(color, bounds),
         }
     }
     pub fn to_render_job(&self) -> RenderJob {

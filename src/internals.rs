@@ -1,22 +1,33 @@
-pub mod object;
-pub mod levels;
 pub mod controls;
+pub mod levels;
+pub mod object;
 pub mod partition_map;
 
 use std::mem::take;
 
-use crate::{render::{RenderJobs}, consts::{BLOCK, SPIKE, PLAYER_ENV, NUM_TIMES, GOAL, GAME_TRANSFORM, WINDOW_Y, GRID_SIZE, WINDOW_X, FUDGE, player, STICKY, CONVEYOR_R, CONVEYOR_L, SLIME, WATER, FLIPPER}, input::InputVars};
+use crate::{
+    consts::{
+        player, BLOCK, CONVEYOR_L, CONVEYOR_R, FLIPPER, FUDGE, GAME_TRANSFORM, GOAL, GRID_SIZE,
+        NUM_TIMES, PLAYER_ENV, SLIME, SPIKE, STICKY, WATER, WINDOW_X, WINDOW_Y,
+    },
+    input::InputVars,
+    render::RenderJobs,
+};
 
-use self::{object::{Object, Environment, Block, Behavior, Direction, CollideAction}, levels::{GridSpace, Levels}, controls::Controls, partition_map::{PartitionMap, Partition}};
-
+use self::{
+    controls::Controls,
+    levels::{GridSpace, Levels},
+    object::{Behavior, Block, CollideAction, Direction, Environment, Object},
+    partition_map::{Partition, PartitionMap},
+};
 
 pub struct Game {
     // the contents of a level
     pub player: Option<Object>,
     pub partitioner: PartitionMap,
-    // TODO: Any interactables that move must recalculate their partition every frame. 
-    // This doesn't need to be done immediately due to the lack of interactables. 
-    // Additionally: deleting interactables can be done by setting the entry to None. 
+    // TODO: Any interactables that move must recalculate their partition every frame.
+    // This doesn't need to be done immediately due to the lack of interactables.
+    // Additionally: deleting interactables can be done by setting the entry to None.
     pub interactables: Vec<Option<Block>>,
     pub non_interactables: Vec<Block>,
     pub player_env: Environment,
@@ -30,11 +41,7 @@ impl Game {
     pub fn new(jobs: &mut RenderJobs) -> Game {
         let mut game = Game {
             player: None,
-            partitioner: PartitionMap::new(
-            Partition {
-                x: 0,
-                y: 0,
-            }),
+            partitioner: PartitionMap::new(Partition { x: 0, y: 0 }),
             interactables: Vec::new(),
             non_interactables: Vec::new(),
             player_env: PLAYER_ENV,
@@ -59,9 +66,15 @@ impl Game {
                     GridSpace::Enemy => todo!(),
                     GridSpace::Goal => (GOAL, Behavior::Advance),
                     GridSpace::StartingLocation => {
-                        self.player = Some(player().x_pos(j as f64).y_pos(i as f64).to_object(jobs, &GAME_TRANSFORM).unwrap());
+                        self.player = Some(
+                            player()
+                                .x_pos(j as f64)
+                                .y_pos(i as f64)
+                                .to_object(jobs, &GAME_TRANSFORM)
+                                .unwrap(),
+                        );
                         continue;
-                    },
+                    }
                     GridSpace::None => continue,
                     GridSpace::Transition => (BLOCK, Behavior::Portal),
                     GridSpace::Wrap => (BLOCK, Behavior::Wrap),
@@ -72,7 +85,11 @@ impl Game {
                     GridSpace::Water => (WATER, Behavior::Water),
                     GridSpace::Flipper => (FLIPPER, Behavior::Flip),
                 };
-                let object = template.x_pos(j as f64).y_pos(i as f64).to_object(jobs, &GAME_TRANSFORM).unwrap();
+                let object = template
+                    .x_pos(j as f64)
+                    .y_pos(i as f64)
+                    .to_object(jobs, &GAME_TRANSFORM)
+                    .unwrap();
                 let mut block = Block::new(object, behavior);
                 block.object.tick(&Vec::new(), jobs);
                 self.partitioner.add(block.object.partition);
@@ -115,7 +132,12 @@ impl Game {
     }
     pub fn load_grid(&mut self, jobs: &mut RenderJobs) {
         self.drop_table(jobs);
-        for (i, line) in self.levels.levels[self.current_level].grid[self.current_pos[0]][self.current_pos[1]].contents.iter().enumerate() {
+        for (i, line) in self.levels.levels[self.current_level].grid[self.current_pos[0]]
+            [self.current_pos[1]]
+            .contents
+            .iter()
+            .enumerate()
+        {
             for (j, block) in line.iter().enumerate() {
                 let (template, behavior) = match block {
                     GridSpace::Block => (BLOCK, Behavior::Stop),
@@ -132,7 +154,11 @@ impl Game {
                     GridSpace::Water => (WATER, Behavior::Water),
                     GridSpace::Flipper => (FLIPPER, Behavior::Flip),
                 };
-                let object = template.x_pos(j as f64).y_pos(i as f64).to_object(jobs, &GAME_TRANSFORM).unwrap();
+                let object = template
+                    .x_pos(j as f64)
+                    .y_pos(i as f64)
+                    .to_object(jobs, &GAME_TRANSFORM)
+                    .unwrap();
                 let mut block = Block::new(object, behavior);
                 block.object.tick(&Vec::new(), jobs);
                 self.partitioner.add(block.object.partition);
@@ -155,7 +181,9 @@ impl Game {
             let player = self.player.as_mut().unwrap();
             player.tick(&vec![&self.player_env], jobs);
             self.partitioner.set_player(player.partition());
-            let player_job = jobs.get_job_mut(player.job_id).expect("The player isn't rendered!");
+            let player_job = jobs
+                .get_job_mut(player.job_id)
+                .expect("The player isn't rendered!");
             self.controls.update_player(player, player_job, input);
             let mut action_queue = Vec::new();
             // let mut counter = 0; // DEBUG
@@ -164,19 +192,44 @@ impl Game {
                 if let Some(block) = &mut self.interactables[line.0] {
                     let [up, down, left, right] = block.collides(player);
                     if up {
-                        action_queue.push(block.on_touch(player, Direction::Up, &mut self.controls, jobs));
+                        action_queue.push((
+                            line.0,
+                            self.interactables[line.0].as_mut().unwrap().priority(),
+                            Direction::Up,
+                        ));
                     }
                     if down {
-                        action_queue.push(block.on_touch(player, Direction::Down, &mut self.controls, jobs));
+                        action_queue.push((
+                            line.0,
+                            self.interactables[line.0].as_mut().unwrap().priority(),
+                            Direction::Down,
+                        ));
                     }
                     if left {
-                        action_queue.push(block.on_touch(player, Direction::Left, &mut self.controls, jobs));
+                        action_queue.push((
+                            line.0,
+                            self.interactables[line.0].as_mut().unwrap().priority(),
+                            Direction::Left,
+                        ));
                     }
                     if right {
-                        action_queue.push(block.on_touch(player, Direction::Right, &mut self.controls, jobs));
+                        action_queue.push((
+                            line.0,
+                            self.interactables[line.0].as_mut().unwrap().priority(),
+                            Direction::Right,
+                        ));
                     }
                 }
             }
+            action_queue.sort_by(|x, y| x.1.cmp(&y.1));
+            let action_queue = action_queue.into_iter().map(|x| {
+                self.interactables[x.0].as_mut().unwrap().on_touch(
+                    player,
+                    x.2,
+                    &mut self.controls,
+                    jobs,
+                )
+            });
             // println!("NUMBER OF BLOCKS GONE THROUGH: {}", counter);
             // println!("TOTAL BLOCKS: {}", self.interactables.len());
             // println!("PLAYER PARTITION: {:?}", player.partition());
@@ -194,7 +247,7 @@ impl Game {
                 }
             }
             {
-                let _x = player; 
+                let _x = player;
             };
             if will_die {
                 self.dead(jobs);
@@ -204,50 +257,55 @@ impl Game {
                 match dir {
                     Direction::Up => {
                         if self.current_pos[0] == 0 {
-                            self.current_pos[0] = self.levels.levels[self.current_level].grid.len() - 1;
+                            self.current_pos[0] =
+                                self.levels.levels[self.current_level].grid.len() - 1;
                         } else {
                             self.current_pos[0] -= 1;
                         }
                         self.player.as_mut().unwrap().y_pos = FUDGE;
-                    },
+                    }
                     Direction::Down => {
                         self.current_pos[0] += 1;
-                        if self.current_pos[0] == self.levels.levels[self.current_level].grid.len() {
+                        if self.current_pos[0] == self.levels.levels[self.current_level].grid.len()
+                        {
                             self.current_pos[0] = 0;
                         }
                         self.player.as_mut().unwrap().y_pos = (WINDOW_Y as f64) - GRID_SIZE - FUDGE;
-                    },
+                    }
                     Direction::Left => {
                         if self.current_pos[1] == 0 {
-                            self.current_pos[1] = self.levels.levels[self.current_level].grid[0].len() - 1;
+                            self.current_pos[1] =
+                                self.levels.levels[self.current_level].grid[0].len() - 1;
                         } else {
                             self.current_pos[1] -= 1;
                         }
                         self.player.as_mut().unwrap().x_pos = FUDGE;
-                    },
+                    }
                     Direction::Right => {
                         self.current_pos[1] += 1;
-                        if self.current_pos[1] >= self.levels.levels[self.current_level].grid[0].len() {
+                        if self.current_pos[1]
+                            >= self.levels.levels[self.current_level].grid[0].len()
+                        {
                             self.current_pos[1] = 0;
                         }
                         self.player.as_mut().unwrap().x_pos = (WINDOW_X as f64) - GRID_SIZE - FUDGE;
-                    },
+                    }
                 }
                 self.load_grid(jobs);
             } else if let Some(dir) = will_wrap {
                 match dir {
                     Direction::Up => {
                         self.player.as_mut().unwrap().y_pos = FUDGE;
-                    },
+                    }
                     Direction::Down => {
                         self.player.as_mut().unwrap().y_pos = (WINDOW_Y as f64) - GRID_SIZE - FUDGE;
-                    },
+                    }
                     Direction::Left => {
                         self.player.as_mut().unwrap().x_pos = FUDGE;
-                    },
+                    }
                     Direction::Right => {
                         self.player.as_mut().unwrap().x_pos = (WINDOW_X as f64) - GRID_SIZE - FUDGE;
-                    },
+                    }
                 }
             }
         }
